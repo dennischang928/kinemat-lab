@@ -1,10 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
-
-import { Stage, Layer, Circle, Line, Text } from 'react-konva';
+import { Stage, Layer, Circle, Line, Text, Group, Arrow } from 'react-konva';
+import { Box, Paper, FormControlLabel, Checkbox, Typography } from '@mui/material';
 import { calculateForwardKinematics } from '../kinematics/forwardkinematics';
-import './robot2d.css';
-
-import { Group, Arrow } from 'react-konva';
 
 const Robot2d = ({ angles, onAngleChange, selectedStep = 4, selectedJoint = 1, showFrameAnimation = false }) => {
   // Link lengths in mm
@@ -391,62 +388,60 @@ const Robot2d = ({ angles, onAngleChange, selectedStep = 4, selectedJoint = 1, s
     const constantStyle = { color: '#bbb' };
 
     return (
-      <div className="matrix-overlay">
-        <div className="matrix-content">
-          <h4>Homogeneous Transformation Matrix</h4>
+      <Paper sx={{ position: 'absolute', top: 20, right: 20, bgcolor: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(10px)', borderRadius: 3, p: 2.5, boxShadow: '0 8px 32px rgba(0,0,0,0.1)', fontFamily: 'monospace', fontSize: 16, color: '#333', pointerEvents: 'none', zIndex: 10, minWidth: 250 }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.2 }}>
+          <Typography variant="subtitle2" sx={{ textTransform: 'uppercase', letterSpacing: 1, color: '#666', mb: 1 }}>Homogeneous Transformation Matrix</Typography>
           
-          <div className="matrix-row" style={{ alignItems: 'center' }}>
-            {/* Symbolic Matrix */}
-            <span className="matrix-bracket" style={{ fontSize: '60px' }}>[</span>
-            <div className="matrix-values">
-              <div className="matrix-value-row">
-                <span className="matrix-value" style={{ width: '80px', ...rotationStyle }}>cos({thetaLabel})</span>
-                <span className="matrix-value" style={{ width: '80px', ...rotationStyle }}>-sin({thetaLabel})</span>
-                <span className="matrix-value" style={{ width: '40px', textAlign: 'center', ...translationStyle }}>{LLabel}</span>
-              </div>
-              <div className="matrix-value-row">
-                <span className="matrix-value" style={{ width: '80px', ...rotationStyle }}>sin({thetaLabel})</span>
-                <span className="matrix-value" style={{ width: '80px', ...rotationStyle }}>cos({thetaLabel})</span>
-                <span className="matrix-value" style={{ width: '40px', textAlign: 'center', ...translationStyle }}>0</span>
-              </div>
-              <div className="matrix-value-row">
-                <span className="matrix-value" style={{ width: '80px', ...constantStyle, textAlign: 'center' }}>0</span>
-                <span className="matrix-value" style={{ width: '80px', ...constantStyle, textAlign: 'center' }}>0</span>
-                <span className="matrix-value" style={{ width: '40px', textAlign: 'center', ...constantStyle }}>1</span>
-              </div>
-            </div>
-            <span className="matrix-bracket" style={{ fontSize: '60px' }}>]</span>
+          <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2.5, alignItems: 'center' }}>
+            <Typography sx={{ fontSize: 60, fontWeight: 300, lineHeight: 1, color: '#999' }}>[</Typography>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.2, justifyContent: 'center' }}>
+              <Box sx={{ display: 'flex', gap: 2.5, justifyContent: 'center' }}>
+                <Typography sx={{ width: 80, textAlign: 'right', fontWeight: 'bold', fontFamily: 'monospace', ...rotationStyle }}>cos({thetaLabel})</Typography>
+                <Typography sx={{ width: 80, textAlign: 'right', fontWeight: 'bold', fontFamily: 'monospace', ...rotationStyle }}>-sin({thetaLabel})</Typography>
+                <Typography sx={{ width: 40, textAlign: 'center', fontWeight: 'bold', fontFamily: 'monospace', ...translationStyle }}>{LLabel}</Typography>
+              </Box>
+              <Box sx={{ display: 'flex', gap: 2.5, justifyContent: 'center' }}>
+                <Typography sx={{ width: 80, textAlign: 'right', fontWeight: 'bold', fontFamily: 'monospace', ...rotationStyle }}>sin({thetaLabel})</Typography>
+                <Typography sx={{ width: 80, textAlign: 'right', fontWeight: 'bold', fontFamily: 'monospace', ...rotationStyle }}>cos({thetaLabel})</Typography>
+                <Typography sx={{ width: 40, textAlign: 'center', fontWeight: 'bold', fontFamily: 'monospace', ...translationStyle }}>0</Typography>
+              </Box>
+              <Box sx={{ display: 'flex', gap: 2.5, justifyContent: 'center' }}>
+                <Typography sx={{ width: 80, textAlign: 'center', fontWeight: 'bold', fontFamily: 'monospace', ...constantStyle }}>0</Typography>
+                <Typography sx={{ width: 80, textAlign: 'center', fontWeight: 'bold', fontFamily: 'monospace', ...constantStyle }}>0</Typography>
+                <Typography sx={{ width: 40, textAlign: 'center', fontWeight: 'bold', fontFamily: 'monospace', ...constantStyle }}>1</Typography>
+              </Box>
+            </Box>
+            <Typography sx={{ fontSize: 60, fontWeight: 300, lineHeight: 1, color: '#999' }}>]</Typography>
             
-            <span style={{ margin: '0 10px', fontSize: '20px' }}>=</span>
+            <Typography sx={{ mx: 1.2, fontSize: 20 }}>=</Typography>
 
-            {/* Evaluated Matrix */}
-            <span className="matrix-bracket" style={{ fontSize: '60px' }}>[</span>
-            <div className="matrix-values">
-              <div className="matrix-value-row">
-                <span className="matrix-value" style={{ width: '70px', ...rotationStyle }}>{cosVal}</span>
-                <span className="matrix-value" style={{ width: '70px', ...rotationStyle }}>{finalNegSinVal}</span>
-                <span className="matrix-value" style={{ width: '50px', ...translationStyle }}>{targetLength}</span>
-              </div>
-              <div className="matrix-value-row">
-                <span className="matrix-value" style={{ width: '70px', ...rotationStyle }}>{sinVal}</span>
-                <span className="matrix-value" style={{ width: '70px', ...rotationStyle }}>{cosVal}</span>
-                <span className="matrix-value" style={{ width: '50px', ...translationStyle }}>0</span>
-              </div>
-              <div className="matrix-value-row">
-                <span className="matrix-value" style={{ width: '70px', ...constantStyle, textAlign: 'center' }}>0</span>
-                <span className="matrix-value" style={{ width: '70px', ...constantStyle, textAlign: 'center' }}>0</span>
-                <span className="matrix-value" style={{ width: '50px', textAlign: 'center', ...constantStyle }}>1</span>
-              </div>
-            </div>
-            <span className="matrix-bracket" style={{ fontSize: '60px' }}>]</span>
-          </div>
-        </div>
-      </div>
+            <Typography sx={{ fontSize: 60, fontWeight: 300, lineHeight: 1, color: '#999' }}>[</Typography>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.2, justifyContent: 'center' }}>
+              <Box sx={{ display: 'flex', gap: 2.5, justifyContent: 'center' }}>
+                <Typography sx={{ width: 70, textAlign: 'right', fontWeight: 'bold', fontFamily: 'monospace', ...rotationStyle }}>{cosVal}</Typography>
+                <Typography sx={{ width: 70, textAlign: 'right', fontWeight: 'bold', fontFamily: 'monospace', ...rotationStyle }}>{finalNegSinVal}</Typography>
+                <Typography sx={{ width: 50, fontWeight: 'bold', fontFamily: 'monospace', ...translationStyle }}>{targetLength}</Typography>
+              </Box>
+              <Box sx={{ display: 'flex', gap: 2.5, justifyContent: 'center' }}>
+                <Typography sx={{ width: 70, textAlign: 'right', fontWeight: 'bold', fontFamily: 'monospace', ...rotationStyle }}>{sinVal}</Typography>
+                <Typography sx={{ width: 70, textAlign: 'right', fontWeight: 'bold', fontFamily: 'monospace', ...rotationStyle }}>{cosVal}</Typography>
+                <Typography sx={{ width: 50, fontWeight: 'bold', fontFamily: 'monospace', ...translationStyle }}>0</Typography>
+              </Box>
+              <Box sx={{ display: 'flex', gap: 2.5, justifyContent: 'center' }}>
+                <Typography sx={{ width: 70, textAlign: 'center', fontWeight: 'bold', fontFamily: 'monospace', ...constantStyle }}>0</Typography>
+                <Typography sx={{ width: 70, textAlign: 'center', fontWeight: 'bold', fontFamily: 'monospace', ...constantStyle }}>0</Typography>
+                <Typography sx={{ width: 50, textAlign: 'center', fontWeight: 'bold', fontFamily: 'monospace', ...constantStyle }}>1</Typography>
+              </Box>
+            </Box>
+            <Typography sx={{ fontSize: 60, fontWeight: 300, lineHeight: 1, color: '#999' }}>]</Typography>
+          </Box>
+        </Box>
+      </Paper>
     );
   };
 
   return (
-    <div className="robot-container">
+    <Box sx={{ width: '100%', height: '100%', boxSizing: 'border-box', p: 2.5, overflow: 'hidden', position: 'relative' }}>
       <Stage 
         ref={stageRef}
         draggable={true}
@@ -646,42 +641,19 @@ const Robot2d = ({ angles, onAngleChange, selectedStep = 4, selectedJoint = 1, s
         {renderMatrixOverlay()}
 
         {/* Grid Toggle Control */}
-        <div style={{
-          position: 'absolute',
-          bottom: '20px',
-          right: '20px',
-          background: 'rgba(255, 255, 255, 0.85)',
-          backdropFilter: 'blur(10px)',
-          border: '1px solid rgba(0,0,0,0.1)',
-          padding: '10px 15px',
-          borderRadius: '8px',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-          zIndex: 10,
-          fontFamily: 'system-ui, sans-serif',
-          fontSize: '14px'
-        }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-              <input 
-                type="checkbox" 
-                checked={showGrid}
-                onChange={(e) => setShowGrid(e.target.checked)}
-                style={{ cursor: 'pointer' }}
-              />
-              Show Grid Lines
-            </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-              <input 
-                type="checkbox" 
-                checked={showProjections}
-                onChange={(e) => setShowProjections(e.target.checked)}
-                style={{ cursor: 'pointer' }}
-              />
-              Show Joint Projections
-            </label>
-          </div>
-        </div>
-      </div>
+        <Paper sx={{ position: 'absolute', bottom: 20, right: 20, bgcolor: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(10px)', p: '10px 15px', borderRadius: 2, boxShadow: '0 4px 12px rgba(0,0,0,0.1)', zIndex: 10, fontSize: 14 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+            <FormControlLabel
+              control={<Checkbox size="small" checked={showGrid} onChange={(e) => setShowGrid(e.target.checked)} />}
+              label={<Typography variant="body2">Show Grid Lines</Typography>}
+            />
+            <FormControlLabel
+              control={<Checkbox size="small" checked={showProjections} onChange={(e) => setShowProjections(e.target.checked)} />}
+              label={<Typography variant="body2">Show Joint Projections</Typography>}
+            />
+          </Box>
+        </Paper>
+      </Box>
     );
 };
 

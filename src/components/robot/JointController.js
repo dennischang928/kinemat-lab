@@ -1,5 +1,5 @@
 import React from 'react';
-import './jointController.css';
+import { Box, Typography, Slider, TextField, Select, MenuItem, FormControlLabel, Checkbox } from '@mui/material';
 
 const JointController = ({ 
   angles, 
@@ -19,133 +19,140 @@ const JointController = ({
     onAngleChange(joint, clamped * Math.PI / 180);
   };
 
-  return (
-    <div className="joint-controller">
-      <h3 style={{ paddingLeft: '20px' }}>Joint Controls</h3>
-      <div style={{ padding: '20px', fontSize: '12px', lineHeight: '1.8' }}>
-        
-        <div style={{ marginBottom: '20px', paddingBottom: '20px', borderBottom: '1px solid #ccc' }}>
-          <h4>Frame Animation</h4>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <label>Select Joint: </label>
-            <select 
-              value={selectedJoint} 
-              onChange={(e) => onJointChange(Number(e.target.value))}
-            >
-              <option value={1}>Joint 1</option>
-              <option value={2}>Joint 2</option>
-              <option value={3}>Joint 3</option>
-            </select>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '10px' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-              <input 
-                type="checkbox" 
-                checked={showFrameAnimation} 
-                onChange={(e) => onAnimationToggle(e.target.checked)}
-              />
-              Show Frame Animation
-            </label>
-          </div>
-        </div>
+  const sliderSx = { width: '90%', ml: 1 };
+  const inputSx = { width: '60px', '& input': { textAlign: 'center', py: '4px', fontSize: '12px' } };
 
-        {viewMode === '3D' && (
-          <div style={{ marginBottom: '20px', paddingBottom: '20px', borderBottom: '1px solid #ccc' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <label>θ0:</label>
-            <input
+  return (
+    <Box sx={{ flex: '0 0 auto', bgcolor: '#f5f5f5', overflowY: 'auto', px: 2.5, py: 1.5 }}>
+      <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1 }}>Joint Controls</Typography>
+
+      {/* Frame Animation Section */}
+      <Box sx={{ mb: 2, pb: 2, borderBottom: '1px solid #ccc' }}>
+        <Typography variant="subtitle2" sx={{ mb: 1 }}>Frame Animation</Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Typography variant="body2">Select Joint:</Typography>
+          <Select
+            size="small"
+            value={selectedJoint}
+            onChange={(e) => onJointChange(Number(e.target.value))}
+            sx={{ fontSize: '12px', minWidth: 100 }}
+          >
+            <MenuItem value={1}>Joint 1</MenuItem>
+            <MenuItem value={2}>Joint 2</MenuItem>
+            <MenuItem value={3}>Joint 3</MenuItem>
+          </Select>
+        </Box>
+        <FormControlLabel
+          control={
+            <Checkbox
+              size="small"
+              checked={showFrameAnimation}
+              onChange={(e) => onAnimationToggle(e.target.checked)}
+            />
+          }
+          label={<Typography variant="body2">Show Frame Animation</Typography>}
+          sx={{ mt: 1 }}
+        />
+      </Box>
+
+      {/* Base Yaw (3D only) */}
+      {viewMode === '3D' && (
+        <Box sx={{ mb: 2, pb: 2, borderBottom: '1px solid #ccc' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Typography variant="body2" fontFamily="monospace">θ0:</Typography>
+            <TextField
               type="number"
-              min="-180"
-              max="180"
-              step="1"
+              size="small"
+              inputProps={{ min: -180, max: 180, step: 1 }}
               value={Math.round(angles.thetaBase * 180 / Math.PI)}
               onChange={(e) => handleNumberInput('thetaBase', parseFloat(e.target.value) || 0)}
-              style={{ width: '60px', textAlign: 'center' }}
+              sx={inputSx}
             />
-            <span>°</span>
-          </div>
-            <input
-              type="range"
-              min="-180"
-              max="180"
-              value={angles.thetaBase * 180 / Math.PI}
-              onChange={(e) => handleAngleChange('thetaBase', parseFloat(e.target.value) * Math.PI / 180)}
-              style={{ width: '90%' }}
-            />
-          </div>
-        )}
+            <Typography variant="body2">°</Typography>
+          </Box>
+          <Slider
+            min={-180}
+            max={180}
+            value={angles.thetaBase * 180 / Math.PI}
+            onChange={(e, val) => handleAngleChange('thetaBase', val * Math.PI / 180)}
+            size="small"
+            sx={sliderSx}
+          />
+        </Box>
+      )}
 
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <label>θ1:</label>
-            <input
-              type="number"
-              min="-180"
-              max="180"
-              step="1"
-              value={Math.round(angles.theta1 * 180 / Math.PI)}
-              onChange={(e) => handleNumberInput('theta1', parseFloat(e.target.value) || 0)}
-              style={{ width: '60px', textAlign: 'center' }}
-            />
-            <span>°</span>
-          </div>
-          <input
-            type="range"
-            min="-180"
-            max="180"
-            value={angles.theta1 * 180 / Math.PI}
-            onChange={(e) => handleAngleChange('theta1', parseFloat(e.target.value) * Math.PI / 180)}
-            style={{ width: '90%' }}
+      {/* θ1 */}
+      <Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Typography variant="body2" fontFamily="monospace">θ1:</Typography>
+          <TextField
+            type="number"
+            size="small"
+            inputProps={{ min: -180, max: 180, step: 1 }}
+            value={Math.round(angles.theta1 * 180 / Math.PI)}
+            onChange={(e) => handleNumberInput('theta1', parseFloat(e.target.value) || 0)}
+            sx={inputSx}
           />
-        </div>
-        <div style={{ marginTop: '20px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <label>θ2:</label>
-            <input
-              type="number"
-              min="-180"
-              max="180"
-              step="1"
-              value={Math.round(angles.theta2 * 180 / Math.PI)}
-              onChange={(e) => handleNumberInput('theta2', parseFloat(e.target.value) || 0)}
-              style={{ width: '60px', textAlign: 'center' }}
-            />
-            <span>°</span>
-          </div>
-          <input
-            type="range"
-            min="-180"
-            max="180"
-            value={angles.theta2 * 180 / Math.PI}
-            onChange={(e) => handleAngleChange('theta2', parseFloat(e.target.value) * Math.PI / 180)}
-            style={{ width: '90%' }}
+          <Typography variant="body2">°</Typography>
+        </Box>
+        <Slider
+          min={-180}
+          max={180}
+          value={angles.theta1 * 180 / Math.PI}
+          onChange={(e, val) => handleAngleChange('theta1', val * Math.PI / 180)}
+          size="small"
+          sx={sliderSx}
+        />
+      </Box>
+
+      {/* θ2 */}
+      <Box sx={{ mt: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Typography variant="body2" fontFamily="monospace">θ2:</Typography>
+          <TextField
+            type="number"
+            size="small"
+            inputProps={{ min: -180, max: 180, step: 1 }}
+            value={Math.round(angles.theta2 * 180 / Math.PI)}
+            onChange={(e) => handleNumberInput('theta2', parseFloat(e.target.value) || 0)}
+            sx={inputSx}
           />
-        </div>
-        <div style={{ marginTop: '20px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <label>θ3:</label>
-            <input
-              type="number"
-              min="-180"
-              max="180"
-              step="1"
-              value={Math.round(angles.theta3 * 180 / Math.PI)}
-              onChange={(e) => handleNumberInput('theta3', parseFloat(e.target.value) || 0)}
-              style={{ width: '60px', textAlign: 'center' }}
-            />
-            <span>°</span>
-          </div>
-          <input
-            type="range"
-            min="-180"
-            max="180"
-            value={angles.theta3 * 180 / Math.PI}
-            onChange={(e) => handleAngleChange('theta3', parseFloat(e.target.value) * Math.PI / 180)}
-            style={{ width: '90%' }}
+          <Typography variant="body2">°</Typography>
+        </Box>
+        <Slider
+          min={-180}
+          max={180}
+          value={angles.theta2 * 180 / Math.PI}
+          onChange={(e, val) => handleAngleChange('theta2', val * Math.PI / 180)}
+          size="small"
+          sx={sliderSx}
+        />
+      </Box>
+
+      {/* θ3 */}
+      <Box sx={{ mt: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Typography variant="body2" fontFamily="monospace">θ3:</Typography>
+          <TextField
+            type="number"
+            size="small"
+            inputProps={{ min: -180, max: 180, step: 1 }}
+            value={Math.round(angles.theta3 * 180 / Math.PI)}
+            onChange={(e) => handleNumberInput('theta3', parseFloat(e.target.value) || 0)}
+            sx={inputSx}
           />
-        </div>
-      </div>
-    </div>
+          <Typography variant="body2">°</Typography>
+        </Box>
+        <Slider
+          min={-180}
+          max={180}
+          value={angles.theta3 * 180 / Math.PI}
+          onChange={(e, val) => handleAngleChange('theta3', val * Math.PI / 180)}
+          size="small"
+          sx={sliderSx}
+        />
+      </Box>
+    </Box>
   );
 };
 

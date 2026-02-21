@@ -1,9 +1,9 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Grid, Text } from '@react-three/drei';
+import { Box, Paper, Typography } from '@mui/material';
 import * as THREE from 'three';
 import { calculateForwardKinematics } from '../kinematics/forwardkinematics';
-import './robot3d.css';
 
 const Link3D = ({ start, end, radius = 0.2, color = "black" }) => {
   const { position, quaternion, length } = useMemo(() => {
@@ -211,15 +211,15 @@ const Robot3d = ({ angles, selectedStep = 4, selectedJoint = 1, showFrameAnimati
       const isRotationPhase = localProgress <= 1;
       const yawDeg = ((angles.thetaBase || 0) * 180 / Math.PI).toFixed(1);
       return (
-        <div className="matrix-overlay">
-          <div className="matrix-content">
-            <h4>Base Yaw Rotation (Y-Axis)</h4>
-            <p style={{ color: isRotationPhase ? '#0055ff' : '#999', fontWeight: isRotationPhase ? 'bold' : 'normal', fontSize: '16px' }}>
+        <Paper sx={{ position: 'absolute', top: 20, right: 20, bgcolor: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(10px)', borderRadius: 3, p: 2.5, boxShadow: '0 8px 32px rgba(0,0,0,0.1)', fontFamily: 'monospace', fontSize: 16, color: '#333', pointerEvents: 'none', zIndex: 10, minWidth: 250 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.2 }}>
+            <Typography variant="subtitle2" sx={{ textTransform: 'uppercase', letterSpacing: 1, color: '#666' }}>Base Yaw Rotation (Y-Axis)</Typography>
+            <Typography sx={{ color: isRotationPhase ? '#0055ff' : '#999', fontWeight: isRotationPhase ? 'bold' : 'normal', fontSize: '16px' }}>
               θ<sub>0</sub> = {yawDeg}°
-            </p>
-            <p style={{ color: '#aaa', fontSize: '12px' }}>Rotating entire arm around Y-axis</p>
-          </div>
-        </div>
+            </Typography>
+            <Typography sx={{ color: '#aaa', fontSize: '12px' }}>Rotating entire arm around Y-axis</Typography>
+          </Box>
+        </Paper>
       );
     }
 
@@ -265,62 +265,60 @@ const Robot3d = ({ angles, selectedStep = 4, selectedJoint = 1, showFrameAnimati
     const constantStyle = { color: '#bbb' };
 
     return (
-      <div className="matrix-overlay">
-        <div className="matrix-content">
-          <h4>Homogeneous Transformation Matrix</h4>
+      <Paper sx={{ position: 'absolute', top: 20, right: 20, bgcolor: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(10px)', borderRadius: 3, p: 2.5, boxShadow: '0 8px 32px rgba(0,0,0,0.1)', fontFamily: 'monospace', fontSize: 16, color: '#333', pointerEvents: 'none', zIndex: 10, minWidth: 250 }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.2 }}>
+          <Typography variant="subtitle2" sx={{ textTransform: 'uppercase', letterSpacing: 1, color: '#666', mb: 1 }}>Homogeneous Transformation Matrix</Typography>
           
-          <div className="matrix-row" style={{ alignItems: 'center' }}>
-            {/* Symbolic Matrix */}
-            <span className="matrix-bracket" style={{ fontSize: '60px' }}>[</span>
-            <div className="matrix-values">
-              <div className="matrix-value-row">
-                <span className="matrix-value" style={{ width: '80px', ...rotationStyle }}>cos({thetaLabel})</span>
-                <span className="matrix-value" style={{ width: '80px', ...rotationStyle }}>-sin({thetaLabel})</span>
-                <span className="matrix-value" style={{ width: '40px', textAlign: 'center', ...translationStyle }}>{LLabel}</span>
-              </div>
-              <div className="matrix-value-row">
-                <span className="matrix-value" style={{ width: '80px', ...rotationStyle }}>sin({thetaLabel})</span>
-                <span className="matrix-value" style={{ width: '80px', ...rotationStyle }}>cos({thetaLabel})</span>
-                <span className="matrix-value" style={{ width: '40px', textAlign: 'center', ...translationStyle }}>0</span>
-              </div>
-              <div className="matrix-value-row">
-                <span className="matrix-value" style={{ width: '80px', ...constantStyle, textAlign: 'center' }}>0</span>
-                <span className="matrix-value" style={{ width: '80px', ...constantStyle, textAlign: 'center' }}>0</span>
-                <span className="matrix-value" style={{ width: '40px', textAlign: 'center', ...constantStyle }}>1</span>
-              </div>
-            </div>
-            <span className="matrix-bracket" style={{ fontSize: '60px' }}>]</span>
+          <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2.5, alignItems: 'center' }}>
+            <Typography sx={{ fontSize: 60, fontWeight: 300, lineHeight: 1, color: '#999' }}>[</Typography>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.2, justifyContent: 'center' }}>
+              <Box sx={{ display: 'flex', gap: 2.5, justifyContent: 'center' }}>
+                <Typography sx={{ width: 80, textAlign: 'right', fontWeight: 'bold', fontFamily: 'monospace', ...rotationStyle }}>cos({thetaLabel})</Typography>
+                <Typography sx={{ width: 80, textAlign: 'right', fontWeight: 'bold', fontFamily: 'monospace', ...rotationStyle }}>-sin({thetaLabel})</Typography>
+                <Typography sx={{ width: 40, textAlign: 'center', fontWeight: 'bold', fontFamily: 'monospace', ...translationStyle }}>{LLabel}</Typography>
+              </Box>
+              <Box sx={{ display: 'flex', gap: 2.5, justifyContent: 'center' }}>
+                <Typography sx={{ width: 80, textAlign: 'right', fontWeight: 'bold', fontFamily: 'monospace', ...rotationStyle }}>sin({thetaLabel})</Typography>
+                <Typography sx={{ width: 80, textAlign: 'right', fontWeight: 'bold', fontFamily: 'monospace', ...rotationStyle }}>cos({thetaLabel})</Typography>
+                <Typography sx={{ width: 40, textAlign: 'center', fontWeight: 'bold', fontFamily: 'monospace', ...translationStyle }}>0</Typography>
+              </Box>
+              <Box sx={{ display: 'flex', gap: 2.5, justifyContent: 'center' }}>
+                <Typography sx={{ width: 80, textAlign: 'center', fontWeight: 'bold', fontFamily: 'monospace', ...constantStyle }}>0</Typography>
+                <Typography sx={{ width: 80, textAlign: 'center', fontWeight: 'bold', fontFamily: 'monospace', ...constantStyle }}>0</Typography>
+                <Typography sx={{ width: 40, textAlign: 'center', fontWeight: 'bold', fontFamily: 'monospace', ...constantStyle }}>1</Typography>
+              </Box>
+            </Box>
+            <Typography sx={{ fontSize: 60, fontWeight: 300, lineHeight: 1, color: '#999' }}>]</Typography>
             
-            <span style={{ margin: '0 10px', fontSize: '20px' }}>=</span>
+            <Typography sx={{ mx: 1.2, fontSize: 20 }}>=</Typography>
 
-            {/* Evaluated Matrix */}
-            <span className="matrix-bracket" style={{ fontSize: '60px' }}>[</span>
-            <div className="matrix-values">
-              <div className="matrix-value-row">
-                <span className="matrix-value" style={{ width: '70px', ...rotationStyle }}>{cosVal}</span>
-                <span className="matrix-value" style={{ width: '70px', ...rotationStyle }}>{finalNegSinVal}</span>
-                <span className="matrix-value" style={{ width: '50px', ...translationStyle }}>{targetLength}</span>
-              </div>
-              <div className="matrix-value-row">
-                <span className="matrix-value" style={{ width: '70px', ...rotationStyle }}>{sinVal}</span>
-                <span className="matrix-value" style={{ width: '70px', ...rotationStyle }}>{cosVal}</span>
-                <span className="matrix-value" style={{ width: '50px', ...translationStyle }}>0</span>
-              </div>
-              <div className="matrix-value-row">
-                <span className="matrix-value" style={{ width: '70px', ...constantStyle, textAlign: 'center' }}>0</span>
-                <span className="matrix-value" style={{ width: '70px', ...constantStyle, textAlign: 'center' }}>0</span>
-                <span className="matrix-value" style={{ width: '50px', textAlign: 'center', ...constantStyle }}>1</span>
-              </div>
-            </div>
-            <span className="matrix-bracket" style={{ fontSize: '60px' }}>]</span>
-          </div>
-        </div>
-      </div>
+            <Typography sx={{ fontSize: 60, fontWeight: 300, lineHeight: 1, color: '#999' }}>[</Typography>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.2, justifyContent: 'center' }}>
+              <Box sx={{ display: 'flex', gap: 2.5, justifyContent: 'center' }}>
+                <Typography sx={{ width: 70, textAlign: 'right', fontWeight: 'bold', fontFamily: 'monospace', ...rotationStyle }}>{cosVal}</Typography>
+                <Typography sx={{ width: 70, textAlign: 'right', fontWeight: 'bold', fontFamily: 'monospace', ...rotationStyle }}>{finalNegSinVal}</Typography>
+                <Typography sx={{ width: 50, fontWeight: 'bold', fontFamily: 'monospace', ...translationStyle }}>{targetLength}</Typography>
+              </Box>
+              <Box sx={{ display: 'flex', gap: 2.5, justifyContent: 'center' }}>
+                <Typography sx={{ width: 70, textAlign: 'right', fontWeight: 'bold', fontFamily: 'monospace', ...rotationStyle }}>{sinVal}</Typography>
+                <Typography sx={{ width: 70, textAlign: 'right', fontWeight: 'bold', fontFamily: 'monospace', ...rotationStyle }}>{cosVal}</Typography>
+                <Typography sx={{ width: 50, fontWeight: 'bold', fontFamily: 'monospace', ...translationStyle }}>0</Typography>
+              </Box>
+              <Box sx={{ display: 'flex', gap: 2.5, justifyContent: 'center' }}>
+                <Typography sx={{ width: 70, textAlign: 'center', fontWeight: 'bold', fontFamily: 'monospace', ...constantStyle }}>0</Typography>
+                <Typography sx={{ width: 70, textAlign: 'center', fontWeight: 'bold', fontFamily: 'monospace', ...constantStyle }}>0</Typography>
+                <Typography sx={{ width: 50, textAlign: 'center', fontWeight: 'bold', fontFamily: 'monospace', ...constantStyle }}>1</Typography>
+              </Box>
+            </Box>
+            <Typography sx={{ fontSize: 60, fontWeight: 300, lineHeight: 1, color: '#999' }}>]</Typography>
+          </Box>
+        </Box>
+      </Paper>
     );
   };
 
   return (
-    <div className="robot3d-container">
+    <Box sx={{ width: '100%', height: '100%', background: 'radial-gradient(circle, #f0f0f0 0%, #d0d0d0 100%)', position: 'relative', display: 'flex' }}>
       <Canvas camera={{ position: [0, 0, 20], fov: 45 }}>
         {/* Environment */}
         <color attach="background" args={['#FFFFFF']} />
@@ -386,7 +384,7 @@ const Robot3d = ({ angles, selectedStep = 4, selectedJoint = 1, showFrameAnimati
       
       {/* Absolute Overlays */}
       {renderMatrixOverlay()}
-    </div>
+    </Box>
   );
 };
 

@@ -1,13 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { Box, Button, Typography, Paper, Chip, LinearProgress } from '@mui/material';
 import { calculateForwardKinematics } from './forwardkinematics';
-import './fkprocessselector.css';
 
 /**
  * FK Process Step Selector Component
  * Shows step-by-step forward kinematics visualization with interactive step selection
  */
 const FKProcessSelector = ({ angles, linkLengths = { L1: 40, L2: 70, L3: 50 }, onStepChange }) => {
-  const [selectedStep, setSelectedStep] = useState(1);
+  const [selectedStep, setSelectedStep] = useState(5);
+  useEffect(() => {
+    onStepChange(selectedStep);
+  }, [selectedStep]);
 
   // Calculate FK with canvas center as base
   const fkResult = calculateForwardKinematics(angles, {
@@ -76,67 +79,105 @@ const FKProcessSelector = ({ angles, linkLengths = { L1: 40, L2: 70, L3: 50 }, o
     }
   };
 
+  const jointColorMap = {
+    base: { bgcolor: '#000', color: '#fff' },
+    joint1: { bgcolor: '#ffebee', color: '#d32f2f', borderColor: '#d32f2f' },
+    joint2: { bgcolor: '#e3f2fd', color: '#1976d2', borderColor: '#1976d2' },
+    joint3: { bgcolor: '#e8f5e9', color: '#388e3c', borderColor: '#388e3c' },
+  };
+
   return (
-    <div className="fk-process-selector">
-      <h3>Forward Kinematics Process</h3>
+    <Box sx={{ bgcolor: '#f9f9f9', borderTop: '1px solid #ddd', p: 2, overflowY: 'auto', maxHeight: 400 }}>
+      <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1.5 }}>Forward Kinematics Process</Typography>
 
       {/* Step Buttons */}
-      <div className="step-buttons">
+      <Box sx={{ display: 'flex', gap: 1, mb: 1.5, overflowX: 'auto', py: 0.5 }}>
         {steps.map((step) => (
-          <button
+          <Button
             key={step.number}
-            className={`step-btn ${selectedStep === step.number ? 'active' : ''}`}
+            variant={selectedStep === step.number ? 'contained' : 'outlined'}
+            size="small"
             onClick={() => handleStepSelect(step.number)}
             title={step.title}
+            sx={{
+              flexShrink: 0,
+              flexDirection: 'column',
+              minWidth: 60,
+              textTransform: 'none',
+              fontWeight: 600,
+              fontSize: '11px',
+              py: 0.8,
+              px: 1.5,
+              borderRadius: '8px',
+            }}
           >
-            <span className="step-num">{step.number}</span>
-            <span className="step-short">{step.title.split(' ')[0]}</span>
-          </button>
+            <Typography variant="body2" fontWeight={700} lineHeight={1}>{step.number}</Typography>
+            <Typography variant="caption" sx={{ opacity: 0.8 }}>{step.title.split(' ')[0]}</Typography>
+          </Button>
         ))}
-      </div>
+      </Box>
 
       {/* Current Step Details */}
-      <div className="step-details">
-        <div className="detail-header">
-          <h4>{currentStep.title}</h4>
-          <span className="step-badge">Step {currentStep.number}/5</span>
-        </div>
+      <Paper variant="outlined" sx={{ p: 1.5, mb: 1.5 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5, borderBottom: '2px solid #f0f0f0', pb: 1 }}>
+          <Typography variant="subtitle2" fontWeight={600}>{currentStep.title}</Typography>
+          <Chip label={`Step ${currentStep.number}/5`} size="small" color="info" variant="outlined" sx={{ fontWeight: 600, fontSize: '10px' }} />
+        </Box>
 
-        <div className="detail-content">
-          <div className="formula-box">
-            <strong>Formula:</strong>
-            <code>{currentStep.formula}</code>
-          </div>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.2, fontSize: '12px' }}>
+          {/* Formula */}
+          <Box sx={{ borderLeft: '3px solid #1976d2', pl: 1.2, bgcolor: '#f8fbff', p: 1, borderRadius: '4px' }}>
+            <Typography variant="caption" fontWeight={600} display="block" sx={{ mb: 0.5 }}>Formula:</Typography>
+            <Typography variant="body2" component="code" sx={{ fontFamily: 'monospace', color: '#d32f2f', fontSize: '11px', wordBreak: 'break-all', lineHeight: 1.4, display: 'block' }}>
+              {currentStep.formula}
+            </Typography>
+          </Box>
 
-          <div className="description-box">
-            <strong>Calculation:</strong>
-            <p>{currentStep.description}</p>
-          </div>
+          {/* Calculation */}
+          <Box sx={{ borderLeft: '3px solid #1976d2', pl: 1.2, bgcolor: '#f8fbff', p: 1, borderRadius: '4px' }}>
+            <Typography variant="caption" fontWeight={600} display="block" sx={{ mb: 0.5 }}>Calculation:</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ fontSize: '11px', lineHeight: 1.4 }}>
+              {currentStep.description}
+            </Typography>
+          </Box>
 
-          <div className="result-box">
-            <strong>Result:</strong>
-            <pre>{currentStep.details}</pre>
-          </div>
+          {/* Result */}
+          <Box sx={{ borderLeft: '3px solid #1976d2', pl: 1.2, bgcolor: '#f8fbff', p: 1, borderRadius: '4px' }}>
+            <Typography variant="caption" fontWeight={600} display="block" sx={{ mb: 0.5 }}>Result:</Typography>
+            <Box component="pre" sx={{ m: 0, bgcolor: 'white', p: 0.8, borderRadius: '3px', border: '1px solid #ddd', fontFamily: 'monospace', fontSize: '10px', color: '#333', lineHeight: 1.5, overflowX: 'auto' }}>
+              {currentStep.details}
+            </Box>
+          </Box>
 
-          {/* Visual representation of joint progression */}
-          <div className="joint-progression">
-            <strong>Joints shown:</strong>
-            <div className="joint-list">
+          {/* Joint Progression */}
+          <Box sx={{ borderLeft: '3px solid #388e3c', pl: 1.2, bgcolor: '#f1f8f4', p: 1, borderRadius: '4px' }}>
+            <Typography variant="caption" fontWeight={600} display="block" sx={{ mb: 0.8 }}>Joints shown:</Typography>
+            <Box sx={{ display: 'flex', gap: 0.8, flexWrap: 'wrap' }}>
               {currentStep.joints.map((joint, idx) => (
-                <span key={joint} className={`joint-tag joint-${joint}`}>
-                  {joint === 'base' ? 'Base' : `J${idx}`}
-                </span>
+                <Chip
+                  key={joint}
+                  label={joint === 'base' ? 'Base' : `J${idx}`}
+                  size="small"
+                  sx={{
+                    fontSize: '10px',
+                    fontWeight: 600,
+                    height: 22,
+                    ...(jointColorMap[joint] || {}),
+                  }}
+                />
               ))}
-            </div>
-          </div>
-        </div>
-      </div>
+            </Box>
+          </Box>
+        </Box>
+      </Paper>
 
       {/* Progress indicator */}
-      <div className="progress-bar">
-        <div className="progress-fill" style={{ width: `${(selectedStep / 5) * 100}%` }}></div>
-      </div>
-    </div>
+      <LinearProgress
+        variant="determinate"
+        value={(selectedStep / 5) * 100}
+        sx={{ height: 4, borderRadius: 1 }}
+      />
+    </Box>
   );
 };
 
