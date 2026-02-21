@@ -1,0 +1,241 @@
+.fk-process-selector {
+  background: #f9f9f9;
+  border-top: 1px solid #ddd;
+  padding: 15px;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  overflow-y: auto;
+  max-height: 400px;
+}
+
+.fk-process-selector h3 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  color: #333;
+  font-weight: 600;
+}
+
+/* Step Buttons */
+.step-buttons {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  overflow-x: auto;
+  padding: 5px 0;
+}
+
+.step-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 12px;
+  border: 2px solid #ddd;
+  border-radius: 8px;
+  background: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  font-weight: 600;
+  font-size: 11px;
+}
+
+.step-btn:hover {
+  border-color: #1976d2;
+  background: #f0f7ff;
+}
+
+.step-btn.active {
+  border-color: #1976d2;
+  background: #1976d2;
+  color: white;
+}
+
+.step-num {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.step-short {
+  font-size: 10px;
+  opacity: 0.8;
+}
+
+/* Step Details */
+.step-details {
+  background: white;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+.detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  border-bottom: 2px solid #f0f0f0;
+  padding-bottom: 8px;
+}
+
+.detail-header h4 {
+  margin: 0;
+  font-size: 13px;
+  color: #333;
+  font-weight: 600;
+}
+
+.step-badge {
+  background: #e8f4f8;
+  color: #0277bd;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.detail-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 12px;
+}
+
+.formula-box,
+.description-box,
+.result-box {
+  border-left: 3px solid #1976d2;
+  padding-left: 10px;
+  background: #f8fbff;
+  padding: 8px 10px;
+  border-radius: 4px;
+}
+
+.formula-box strong,
+.description-box strong,
+.result-box strong {
+  display: block;
+  margin-bottom: 4px;
+  color: #333;
+  font-size: 11px;
+}
+
+.formula-box code {
+  display: block;
+  font-family: 'Courier New', monospace;
+  color: #d32f2f;
+  font-size: 11px;
+  word-break: break-all;
+  line-height: 1.4;
+}
+
+.description-box p {
+  margin: 0;
+  color: #666;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.result-box pre {
+  margin: 0;
+  background: white;
+  padding: 6px;
+  border-radius: 3px;
+  border: 1px solid #ddd;
+  font-family: 'Courier New', monospace;
+  font-size: 10px;
+  color: #333;
+  line-height: 1.5;
+  overflow-x: auto;
+}
+
+/* Joint Progression */
+.joint-progression {
+  border-left: 3px solid #388e3c;
+  padding-left: 10px;
+  background: #f1f8f4;
+  padding: 8px 10px;
+  border-radius: 4px;
+}
+
+.joint-progression strong {
+  display: block;
+  margin-bottom: 6px;
+  color: #333;
+  font-size: 11px;
+}
+
+.joint-list {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.joint-tag {
+  background: white;
+  border: 1px solid #388e3c;
+  color: #388e3c;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.joint-tag.joint-base {
+  background: #000;
+  color: white;
+  border-color: #000;
+}
+
+.joint-tag.joint-joint1 {
+  background: #ffebee;
+  color: #d32f2f;
+  border-color: #d32f2f;
+}
+
+.joint-tag.joint-joint2 {
+  background: #e3f2fd;
+  color: #1976d2;
+  border-color: #1976d2;
+}
+
+.joint-tag.joint-joint3 {
+  background: #e8f5e9;
+  color: #388e3c;
+  border-color: #388e3c;
+}
+
+/* Progress Bar */
+.progress-bar {
+  width: 100%;
+  height: 4px;
+  background: #e0e0e0;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #1976d2, #0277bd);
+  transition: width 0.3s ease;
+}
+
+/* Scrollbar styling */
+.fk-process-selector::-webkit-scrollbar {
+  width: 6px;
+}
+
+.fk-process-selector::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 10px;
+}
+
+.fk-process-selector::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 10px;
+}
+
+.fk-process-selector::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
