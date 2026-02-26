@@ -29,26 +29,32 @@ const Robot2d = ({ angles, onAngleChange, selectedStep = 4, selectedJoint = 1, s
   const [showGrid, setShowGrid] = useState(true);
   const [showProjections, setShowProjections] = useState(false);
   const animationRef = useRef(null);
+  const containerRef = useRef(null);
 
   useEffect(() => {
     let startTime;
-    // 4 seconds per joint, so 12 seconds for the full sequence if selectedJoint === 0
-    const DURATION = selectedJoint === 0 ? 12000 : 4000; 
+    // Step 1: rotation only (1 unit), Steps 2-3: translate+rotate (2 units each)
+    // Play all: 1 + 2 + 2 = 5 units over 15 seconds
+    const DURATION = selectedJoint === 0 ? 15000 : (selectedJoint === 1 ? 4000 : 4000);
 
     const animate = (time) => {
       if (!startTime) startTime = time;
       const elapsed = time - startTime;
-      
+
       if (selectedJoint === 0) {
-        // Full sequence: 0 to 6 total progress
-        const totalProgress = (elapsed % DURATION) / (DURATION / 6);
+        // Full sequence: 0 to 5 total progress
+        const totalProgress = (elapsed % DURATION) / (DURATION / 5);
         setAnimProgress(totalProgress);
+      } else if (selectedJoint === 1) {
+        // Rotation only: progress 0 to 1
+        const progress = (elapsed % DURATION) / DURATION;
+        setAnimProgress(progress);
       } else {
-        // Calculate progress from 0 to 2 for single joint
+        // Translate then rotate: progress 0 to 2
         const progress = (elapsed % DURATION) / (DURATION / 2);
         setAnimProgress(progress);
       }
-      
+
       animationRef.current = requestAnimationFrame(animate);
     };
 
@@ -77,7 +83,7 @@ const Robot2d = ({ angles, onAngleChange, selectedStep = 4, selectedJoint = 1, s
     };
 
     const handleWheel = (e) => {
-      if (stageRef.current) {
+      if (containerRef.current && containerRef.current.contains(e.target)) {
         e.preventDefault();
         const scaleBy = 1.1;
         const newZoom = e.deltaY < 0 ? zoom * scaleBy : zoom / scaleBy;
@@ -111,7 +117,7 @@ const Robot2d = ({ angles, onAngleChange, selectedStep = 4, selectedJoint = 1, s
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mouseup', handleMouseUp);
     window.addEventListener('contextmenu', (e) => e.preventDefault());
-    
+
     return () => {
       window.removeEventListener('resize', handleResize);
       window.removeEventListener('wheel', handleWheel);
@@ -147,6 +153,73 @@ const Robot2d = ({ angles, onAngleChange, selectedStep = 4, selectedJoint = 1, s
   const showLink1 = selectedStep >= 2;
   const showLink2 = selectedStep >= 3;
   const showLink3 = selectedStep >= 4;
+
+  // Helper function to render coordinate frames
+  const renderCoordinateFrame = (x, y, angle, label_x, label_y, axisLength = 60) => {
+    const rotationRad = angle;
+    // X-axis direction (red)
+    const xAxisEndX = x + axisLength * Math.cos(rotationRad);
+    const xAxisEndY = y - axisLength * Math.sin(rotationRad);
+    // Y-axis direction (green) - perpendicular to X-axis
+    const yAxisEndX = x - axisLength * Math.sin(rotationRad);
+    const yAxisEndY = y - axisLength * Math.cos(rotationRad);
+
+    const xAxisLabel = `${label_x}`;
+    const yAxisLabel = `${label_y}`;
+
+    return (
+      <Group key={`frame-${label_x}-${label_y}`}>
+        {/* X-axis (red) */}
+        <Arrow
+          points={[x, y, xAxisEndX, xAxisEndY]}
+          stroke="red"
+          strokeWidth={2}
+          fill="red"
+          dashEnabled={true}
+          dash={[5, 1]}
+          pointerWidth={5}
+          pointerLength={5}
+        />
+        {/* X-axis label */}
+        <Text
+          text={xAxisLabel}
+          x={xAxisEndX + 5}
+          y={xAxisEndY - 10}
+          fontSize={10}
+          fill="red"
+          fontStyle="bold"
+        />
+        {/* Y-axis (green) */}
+        <Arrow
+          points={[x, y, yAxisEndX, yAxisEndY]}
+          stroke="green"
+          strokeWidth={2}
+          fill="green"
+          dashEnabled={true}
+          dash={[5, 1]}
+          pointerWidth={5}
+          pointerLength={5}
+        />
+        {/* Y-axis label */}
+        <Text
+          text={yAxisLabel}
+          x={yAxisEndX - 15}
+          y={yAxisEndY - 10}
+          fontSize={10}
+          fill="green"
+          fontStyle="bold"
+
+        />
+        {/* Frame origin dot */}
+        <Circle
+          x={x}
+          y={y}
+          radius={2}
+          fill="black"
+        />
+      </Group>
+    );
+  };
 
   // Generate grid lines and labels
   const generateGrid = () => {
@@ -218,7 +291,7 @@ const Robot2d = ({ angles, onAngleChange, selectedStep = 4, selectedJoint = 1, s
         key="x-axis"
         points={[0, centerY, dimensions.width, centerY]}
         stroke="#000"
-        strokeWidth={1.3  }
+        strokeWidth={1.3}
         dash={[10, 10]}
       />
     );
@@ -227,7 +300,7 @@ const Robot2d = ({ angles, onAngleChange, selectedStep = 4, selectedJoint = 1, s
         key="y-axis"
         points={[centerX, 0, centerX, dimensions.height]}
         stroke="#000"
-        strokeWidth={1.3  }
+        strokeWidth={1.3}
         dash={[10, 10]}
       />
     );
@@ -243,56 +316,70 @@ const Robot2d = ({ angles, onAngleChange, selectedStep = 4, selectedJoint = 1, s
 
     // Sub-divide the progress if playing all
     if (selectedJoint === 0) {
-      if (animProgress <= 2) {
+      if (animProgress <= 1) {
         activeJoint = 1;
-        localProgress = animProgress; // 0 to 2
-      } else if (animProgress <= 4) {
+        localProgress = animProgress; // 0 to 1 (rotation only)
+      } else if (animProgress <= 3) {
         activeJoint = 2;
-        localProgress = animProgress - 2; // 0 to 2
+        localProgress = animProgress - 1; // 0 to 2 (translate + rotate)
       } else {
         activeJoint = 3;
-        localProgress = animProgress - 4; // 0 to 2
+        localProgress = animProgress - 3; // 0 to 2 (translate + rotate)
       }
     }
 
-    let startPos, startAngle, targetAngle, targetLength;
+    let startPos, startAngle, targetAngle, translateLength, frameLabel;
+    let rotationOnly = false;
 
-    if (activeJoint === 1 && showLink1) {
+    if (activeJoint === 1) {
+      // Step 1: Rotation only at origin by θ₁
       startPos = positions.base;
       startAngle = 0;
       targetAngle = fkResult.angles.absolute1;
-      targetLength = L1 * SCALE;
-    } else if (activeJoint === 2 && showLink2) {
-      startPos = positions.joint1;
+      translateLength = 0;
+      rotationOnly = true;
+      frameLabel = '₁';
+    } else if (activeJoint === 2) {
+      // Step 2: Translate L₁ from base along θ₁, then rotate by θ₂
+      startPos = positions.base;
       startAngle = fkResult.angles.absolute1;
       targetAngle = fkResult.angles.absolute2;
-      targetLength = L2 * SCALE;
-    } else if (activeJoint === 3 && showLink3) {
-      startPos = positions.joint2;
+      translateLength = L1 * SCALE;
+      frameLabel = '₂';
+    } else if (activeJoint === 3) {
+      // Step 3: Translate L₂ from joint1 along θ₁+θ₂, then rotate by θ₃
+      startPos = positions.joint1;
       startAngle = fkResult.angles.absolute2;
       targetAngle = fkResult.angles.absolute3;
-      targetLength = L3 * SCALE;
+      translateLength = L2 * SCALE;
+      frameLabel = '₃';
     } else {
       return null;
     }
 
-    // Progress calculation
-    let currentAngle = startAngle;
-    let currentDist = 0;
+    let currentX, currentY, currentAngle;
 
-    if (localProgress <= 1) {
-      // Rotation phase: interpolate angle
-      currentAngle = startAngle + (targetAngle - startAngle) * localProgress;
+    if (rotationOnly) {
+      // Only rotation phase, no translation
+      currentX = startPos.x;
+      currentY = startPos.y;
+      currentAngle = startAngle + (targetAngle - startAngle) * Math.min(localProgress, 1);
     } else {
-      // Translation phase: rotate fully, translate along X
-      currentAngle = targetAngle;
-      const translateProgress = localProgress - 1;
-      currentDist = targetLength * translateProgress;
+      // Phase 1: Translation (0→1), Phase 2: Rotation (1→2)
+      if (localProgress <= 1) {
+        // Translation phase: move along startAngle direction
+        currentAngle = startAngle;
+        const dist = translateLength * localProgress;
+        currentX = startPos.x + dist * Math.cos(startAngle);
+        currentY = startPos.y - dist * Math.sin(startAngle);
+      } else {
+        // Rotation phase: at destination, rotate
+        const rotProgress = Math.min(localProgress - 1, 1);
+        currentX = startPos.x + translateLength * Math.cos(startAngle);
+        currentY = startPos.y - translateLength * Math.sin(startAngle);
+        currentAngle = startAngle + (targetAngle - startAngle) * rotProgress;
+      }
     }
-
-    // Calculate current absolute position
-    const currentX = startPos.x + currentDist * Math.cos(currentAngle);
-    const currentY = startPos.y - currentDist * Math.sin(currentAngle);
 
     // Konva rotation is clockwise in degrees, and 0 is +X.
     // Our math angles are CCW positive, so Konva rotation = -angle * 180 / PI
@@ -303,26 +390,41 @@ const Robot2d = ({ angles, onAngleChange, selectedStep = 4, selectedJoint = 1, s
     return (
       <Group x={currentX} y={currentY} rotation={rotationDeg}>
         {/* X axis (i-hat) */}
-        <Arrow 
-          points={[0, 0, axisLength, 0]} 
-          stroke="rgb(255, 50, 50)" 
+        <Arrow
+          points={[0, 0, axisLength, 0]}
+          stroke="rgb(255, 50, 50)"
           fill="rgb(255, 50, 50)"
-          strokeWidth={3} 
+          strokeWidth={3}
           pointerLength={5}
           pointerWidth={5}
         />
-        <Text text="X" x={axisLength + 5} y={-8} fill="red" fontSize={14} fontFamily="monospace" fontStyle="bold" />
-        
+        <Text
+          text={`X${frameLabel}`}
+          x={axisLength + 5}
+          y={-8}
+          fontSize={10}
+          fill="red"
+          fontStyle="bold"
+        />
+
         {/* Y axis (j-hat) */}
-        <Arrow 
-          points={[0, 0, 0, -axisLength]} 
-          stroke="rgb(50, 200, 50)" 
+        <Arrow
+          points={[0, 0, 0, -axisLength]}
+          stroke="rgb(50, 200, 50)"
           fill="rgb(50, 200, 50)"
-          strokeWidth={3} 
+          strokeWidth={3}
           pointerLength={5}
           pointerWidth={5}
         />
-        <Text text="Y" x={-8} y={-axisLength - 20} fill="green" fontSize={14} fontFamily="monospace" fontStyle="bold" />
+
+        <Text
+          text={`Y${frameLabel}`}
+          x={-8} y={-axisLength - 20}
+          fontSize={10}
+          fill="red"
+          fontStyle="bold"
+        />
+
       </Group>
     );
   };
@@ -334,29 +436,29 @@ const Robot2d = ({ angles, onAngleChange, selectedStep = 4, selectedJoint = 1, s
     let localProgress = animProgress;
 
     if (selectedJoint === 0) {
-      if (animProgress <= 2) {
+      if (animProgress <= 1) {
         activeJoint = 1;
         localProgress = animProgress;
-      } else if (animProgress <= 4) {
+      } else if (animProgress <= 3) {
         activeJoint = 2;
-        localProgress = animProgress - 2;
+        localProgress = animProgress - 1;
       } else {
         activeJoint = 3;
-        localProgress = animProgress - 4;
+        localProgress = animProgress - 3;
       }
     }
 
-    const isRotationPhase = localProgress <= 1;
-    const isTranslationPhase = localProgress > 1;
+    const isRotationPhase = (activeJoint === 1) ? localProgress <= 1 : localProgress > 1;
+    const isTranslationPhase = (activeJoint === 1) ? false : localProgress <= 1;
 
     let targetLength, theta_n;
-    if (activeJoint === 1 && showLink1) {
+    if (activeJoint === 1) {
       targetLength = L1;
       theta_n = angles.theta1;
-    } else if (activeJoint === 2 && showLink2) {
+    } else if (activeJoint === 2) {
       targetLength = L2;
       theta_n = angles.theta2;
-    } else if (activeJoint === 3 && showLink3) {
+    } else if (activeJoint === 3) {
       targetLength = L3;
       theta_n = angles.theta3;
     } else {
@@ -372,17 +474,17 @@ const Robot2d = ({ angles, onAngleChange, selectedStep = 4, selectedJoint = 1, s
     const negSinVal = formatNegZero(negSinValCalc);
     // Explicitly handle JS negative zero stringification edge cases
     const finalNegSinVal = negSinVal === "-0.00" || negSinVal === "0.00" ? "0.00" : negSinVal;
-    
+
     const thetaLabel = `θ${activeJoint}`;
     const LLabel = `L${activeJoint}`;
 
     // Define highlight styles based on the active phase
-    const rotationStyle = isRotationPhase 
-      ? { color: '#0055ff', fontWeight: 'bold', background: 'rgba(0, 85, 255, 0.1)', borderRadius: '4px' } 
+    const rotationStyle = isRotationPhase
+      ? { color: '#0055ff', fontWeight: 'bold', background: 'rgba(0, 85, 255, 0.1)', borderRadius: '4px' }
       : { color: '#999' };
-      
-    const translationStyle = isTranslationPhase 
-      ? { color: '#ff3300', fontWeight: 'bold', background: 'rgba(255, 51, 0, 0.1)', borderRadius: '4px' } 
+
+    const translationStyle = isTranslationPhase
+      ? { color: '#ff3300', fontWeight: 'bold', background: 'rgba(255, 51, 0, 0.1)', borderRadius: '4px' }
       : { color: '#999' };
 
     const constantStyle = { color: '#bbb' };
@@ -391,7 +493,7 @@ const Robot2d = ({ angles, onAngleChange, selectedStep = 4, selectedJoint = 1, s
       <Paper sx={{ position: 'absolute', top: 20, right: 20, bgcolor: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(10px)', borderRadius: 3, p: 2.5, boxShadow: '0 8px 32px rgba(0,0,0,0.1)', fontFamily: 'monospace', fontSize: 16, color: '#333', pointerEvents: 'none', zIndex: 10, minWidth: 250 }}>
         <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.2 }}>
           <Typography variant="subtitle2" sx={{ textTransform: 'uppercase', letterSpacing: 1, color: '#666', mb: 1 }}>Homogeneous Transformation Matrix</Typography>
-          
+
           <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2.5, alignItems: 'center' }}>
             <Typography sx={{ fontSize: 60, fontWeight: 300, lineHeight: 1, color: '#999' }}>[</Typography>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.2, justifyContent: 'center' }}>
@@ -412,7 +514,7 @@ const Robot2d = ({ angles, onAngleChange, selectedStep = 4, selectedJoint = 1, s
               </Box>
             </Box>
             <Typography sx={{ fontSize: 60, fontWeight: 300, lineHeight: 1, color: '#999' }}>]</Typography>
-            
+
             <Typography sx={{ mx: 1.2, fontSize: 20 }}>=</Typography>
 
             <Typography sx={{ fontSize: 60, fontWeight: 300, lineHeight: 1, color: '#999' }}>[</Typography>
@@ -442,16 +544,17 @@ const Robot2d = ({ angles, onAngleChange, selectedStep = 4, selectedJoint = 1, s
 
   return (
     <Box sx={{ width: '100%', height: '100%', boxSizing: 'border-box', p: 2.5, overflow: 'hidden', position: 'relative' }}>
-      <Stage 
-        ref={stageRef}
-        draggable={true}
-        width={dimensions.width} 
-        height={dimensions.height}
-        scaleX={zoom}
-        scaleY={zoom}
-        offsetX={(dimensions.width / 2) * (1 - 1/zoom) - position.x / zoom}
-        offsetY={(dimensions.height / 2) * (1 - 1/zoom) - position.y / zoom}
-      >
+      <Box ref={containerRef} sx={{ width: '100%', height: '100%' }}>
+        <Stage
+          ref={stageRef}
+          draggable={true}
+          width={dimensions.width}
+          height={dimensions.height}
+          scaleX={zoom}
+          scaleY={zoom}
+          offsetX={(dimensions.width / 2) * (1 - 1 / zoom) - position.x / zoom}
+          offsetY={(dimensions.height / 2) * (1 - 1 / zoom) - position.y / zoom}
+        >
           <Layer>
             {/* Draw grid */}
             {showGrid && generateGrid()}
@@ -463,6 +566,19 @@ const Robot2d = ({ angles, onAngleChange, selectedStep = 4, selectedJoint = 1, s
               radius={6}
               fill="black"
             />
+
+            {/* Draw Coordinate Frames */}
+            {/* Base Frame (X₀, Y₀) - at origin, never moves */}
+            {renderCoordinateFrame(positions.base.x, positions.base.y, 0, 'X₀', 'Y₀')}
+
+            {/* Frame 1 (X₁, Y₁) - at origin, rotated by θ₁ (shown when step 1 is completed) */}
+            {selectedStep >= 2 && renderCoordinateFrame(positions.base.x, positions.base.y, fkResult.angles.absolute1, 'X₁', 'Y₁')}
+
+            {/* Frame 2 (X₂, Y₂) - at joint1 position, rotated by θ₁+θ₂ (shown when step 2 is completed) */}
+            {selectedStep >= 3 && renderCoordinateFrame(positions.joint1.x, positions.joint1.y, fkResult.angles.absolute2, 'X₂', 'Y₂')}
+
+            {/* Frame 3 (X₃, Y₃) - at joint2 position, rotated by θ₁+θ₂+θ₃ (shown when step 3 is completed) */}
+            {selectedStep >= 4 && renderCoordinateFrame(positions.joint2.x, positions.joint2.y, fkResult.angles.absolute3, 'X₃', 'Y₃')}
 
             {/* Draw links */}
             {/* Link 1 */}
@@ -505,7 +621,7 @@ const Robot2d = ({ angles, onAngleChange, selectedStep = 4, selectedJoint = 1, s
                   x={positions.base.x + 20}
                   y={positions.base.y - 20}
                   fontSize={11}
-                  fill="blue"
+                  fill="black"
                 />
                 <Text
                   text={`L1: ${L1}mm`}
@@ -515,7 +631,7 @@ const Robot2d = ({ angles, onAngleChange, selectedStep = 4, selectedJoint = 1, s
                   offsetY={15}
                   rotation={-fkResult.angles.absolute1 * 180 / Math.PI}
                   fontSize={12}
-                  fill="darkblue"
+                  fill="black"
                 />
               </>
             )}
@@ -559,7 +675,7 @@ const Robot2d = ({ angles, onAngleChange, selectedStep = 4, selectedJoint = 1, s
                   x={positions.joint1.x + 20}
                   y={positions.joint1.y - 20}
                   fontSize={11}
-                  fill="green"
+                  fill="black"
                 />
                 <Text
                   text={`L2: ${L2}mm`}
@@ -569,7 +685,7 @@ const Robot2d = ({ angles, onAngleChange, selectedStep = 4, selectedJoint = 1, s
                   offsetY={15}
                   rotation={-fkResult.angles.absolute2 * 180 / Math.PI}
                   fontSize={12}
-                  fill="darkblue"
+                  fill="black"
                 />
               </>
             )}
@@ -613,7 +729,7 @@ const Robot2d = ({ angles, onAngleChange, selectedStep = 4, selectedJoint = 1, s
                   x={positions.joint2.x + 20}
                   y={positions.joint2.y - 20}
                   fontSize={11}
-                  fill="red"
+                  fill="black"
                 />
                 <Text
                   text={`L3: ${L3}mm`}
@@ -623,38 +739,39 @@ const Robot2d = ({ angles, onAngleChange, selectedStep = 4, selectedJoint = 1, s
                   offsetY={15}
                   rotation={-fkResult.angles.absolute3 * 180 / Math.PI}
                   fontSize={12}
-                  fill="darkblue"
+                  fill="black"
                 />
               </>
             )}
 
             {/* Draw joints */}
-            <Circle x={positions.base.x} y={positions.base.y} radius={8} fill="blue" />
-            {showLink1 && <Circle x={positions.joint1.x} y={positions.joint1.y} radius={7} fill="red" />}
-            {showLink2 && <Circle x={positions.joint2.x} y={positions.joint2.y} radius={7} fill="red" />}
-            {showLink3 && <Circle x={positions.joint3.x} y={positions.joint3.y} radius={7} fill="green" />}
-            
+            <Circle x={positions.base.x} y={positions.base.y} radius={4} fill="black" stroke="black" strokeWidth={2} />
+            {showLink1 && <Circle x={positions.joint1.x} y={positions.joint1.y} radius={4} fill="black" stroke="black" strokeWidth={2} />}
+            {showLink2 && <Circle x={positions.joint2.x} y={positions.joint2.y} radius={4} fill="black" stroke="black" strokeWidth={2} />}
+            {showLink3 && <Circle x={positions.joint3.x} y={positions.joint3.y} radius={4} fill="black" stroke="black" strokeWidth={2} />}
+
             {/* Draw Animated Frame */}
             {renderAnimatedFrame()}
           </Layer>
         </Stage>
-        {renderMatrixOverlay()}
-
-        {/* Grid Toggle Control */}
-        <Paper sx={{ position: 'absolute', bottom: 20, right: 20, bgcolor: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(10px)', p: '10px 15px', borderRadius: 2, boxShadow: '0 4px 12px rgba(0,0,0,0.1)', zIndex: 10, fontSize: 14 }}>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-            <FormControlLabel
-              control={<Checkbox size="small" checked={showGrid} onChange={(e) => setShowGrid(e.target.checked)} />}
-              label={<Typography variant="body2">Show Grid Lines</Typography>}
-            />
-            <FormControlLabel
-              control={<Checkbox size="small" checked={showProjections} onChange={(e) => setShowProjections(e.target.checked)} />}
-              label={<Typography variant="body2">Show Joint Projections</Typography>}
-            />
-          </Box>
-        </Paper>
       </Box>
-    );
+      {renderMatrixOverlay()}
+
+      {/* Grid Toggle Control */}
+      <Paper sx={{ position: 'absolute', bottom: 20, right: 20, bgcolor: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(10px)', p: '10px 15px', borderRadius: 2, boxShadow: '0 4px 12px rgba(0,0,0,0.1)', zIndex: 10, fontSize: 14 }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+          <FormControlLabel
+            control={<Checkbox size="small" checked={showGrid} onChange={(e) => setShowGrid(e.target.checked)} />}
+            label={<Typography variant="body2">Show Grid Lines</Typography>}
+          />
+          <FormControlLabel
+            control={<Checkbox size="small" checked={showProjections} onChange={(e) => setShowProjections(e.target.checked)} />}
+            label={<Typography variant="body2">Show Joint Projections</Typography>}
+          />
+        </Box>
+      </Paper>
+    </Box>
+  );
 };
 
 export default Robot2d;

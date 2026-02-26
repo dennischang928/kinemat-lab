@@ -26,35 +26,6 @@ const JointController = ({
     <Box sx={{ flex: '0 0 auto', bgcolor: '#f5f5f5', overflowY: 'auto', px: 2.5, py: 1.5 }}>
       <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1 }}>Joint Controls</Typography>
 
-      {/* Frame Animation Section */}
-      <Box sx={{ mb: 2, pb: 2, borderBottom: '1px solid #ccc' }}>
-        <Typography variant="subtitle2" sx={{ mb: 1 }}>Frame Animation</Typography>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Typography variant="body2">Select Joint:</Typography>
-          <Select
-            size="small"
-            value={selectedJoint}
-            onChange={(e) => onJointChange(Number(e.target.value))}
-            sx={{ fontSize: '12px', minWidth: 100 }}
-          >
-            <MenuItem value={1}>Joint 1</MenuItem>
-            <MenuItem value={2}>Joint 2</MenuItem>
-            <MenuItem value={3}>Joint 3</MenuItem>
-          </Select>
-        </Box>
-        <FormControlLabel
-          control={
-            <Checkbox
-              size="small"
-              checked={showFrameAnimation}
-              onChange={(e) => onAnimationToggle(e.target.checked)}
-            />
-          }
-          label={<Typography variant="body2">Show Frame Animation</Typography>}
-          sx={{ mt: 1 }}
-        />
-      </Box>
-
       {/* Base Yaw (3D only) */}
       {viewMode === '3D' && (
         <Box sx={{ mb: 2, pb: 2, borderBottom: '1px solid #ccc' }}>
