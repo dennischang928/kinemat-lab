@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Typography, Slider, TextField, Select, MenuItem, FormControlLabel, Checkbox } from '@mui/material';
+import { Box, Typography, Slider, TextField } from '@mui/material';
 
 const JointController = ({ 
   angles, 

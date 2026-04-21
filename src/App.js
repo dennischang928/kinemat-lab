@@ -7,7 +7,7 @@ import FKProcessSelector from './components/kinematics/FKProcessSelector';
 
 function App() {
   const [viewMode, setViewMode] = useState('2D'); // '2D' or '3D'
-  const [leftPanelWidth, setLeftPanelWidth] = useState(30); // percentage
+  const [leftPanelWidth, setLeftPanelWidth] = useState(40); // percentage
   const [jointControllerHeight, setJointControllerHeight] = useState(40); // percentage of left panel
   const isDraggingRef = useRef(false);
   const isDraggingJointDividerRef = useRef(false);
@@ -23,14 +23,33 @@ function App() {
   const [selectedStep, setSelectedStep] = useState(4); // 0-4, default to show all
   const [selectedJoint, setSelectedJoint] = useState(1); // 1, 2, or 3
   const [showFrameAnimation, setShowFrameAnimation] = useState(false);
+  const isPlayAllActive = showFrameAnimation && selectedJoint === 0;
 
   const handleStepChange = (step) => {
-    setSelectedStep(step);
-    if (step === 4) {
+    if (step === 'play-all') {
+      if (isPlayAllActive) {
+        // Stop Play All explicitly from the same button.
+        setShowFrameAnimation(false);
+        return;
+      }
+
+      setSelectedStep(4);
       setSelectedJoint(0); // 0 indicates "Play All"
       setShowFrameAnimation(true);
-    } else if (step >= 1) {
-      setSelectedJoint(step);
+      return;
+    }
+
+    // Prevent 1-4 buttons from interrupting Play All.
+    if (isPlayAllActive) {
+      return;
+    }
+
+    setSelectedStep(step);
+
+    if (step >= 1) {
+      // Step 4 is a distinct final segment animation (3 -> 4).
+      const jointForStep = step === 4 ? 4 : step;
+      setSelectedJoint(jointForStep);
       setShowFrameAnimation(true);
     } else {
       setShowFrameAnimation(false);
@@ -128,6 +147,7 @@ function App() {
             angles={angles} 
             linkLengths={{ L1: 40, L2: 70, L3: 50 }}
             onStepChange={handleStepChange}
+            isPlayAllActive={isPlayAllActive}
           />
         </Box>
       </Box>

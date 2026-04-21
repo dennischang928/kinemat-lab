@@ -33,20 +33,24 @@ const Robot2d = ({ angles, onAngleChange, selectedStep = 4, selectedJoint = 1, s
 
   useEffect(() => {
     let startTime;
-    // Step 1: rotation only (1 unit), Steps 2-3: translate+rotate (2 units each)
-    // Play all: 1 + 2 + 2 = 5 units over 15 seconds
-    const DURATION = selectedJoint === 0 ? 15000 : (selectedJoint === 1 ? 4000 : 4000);
+    // Step 1: rotation only (1 unit), Steps 2-3: translate+rotate (2 units each), Step 4: translation only (1 unit)
+    // Play all: 1 + 2 + 2 + 1 = 6 units over 18 seconds
+    const DURATION = selectedJoint === 0 ? 18000 : 4000;
 
     const animate = (time) => {
       if (!startTime) startTime = time;
       const elapsed = time - startTime;
 
       if (selectedJoint === 0) {
-        // Full sequence: 0 to 5 total progress
-        const totalProgress = (elapsed % DURATION) / (DURATION / 5);
+        // Full sequence: 0 to 6 total progress
+        const totalProgress = (elapsed % DURATION) / (DURATION / 6);
         setAnimProgress(totalProgress);
       } else if (selectedJoint === 1) {
         // Rotation only: progress 0 to 1
+        const progress = (elapsed % DURATION) / DURATION;
+        setAnimProgress(progress);
+      } else if (selectedJoint === 4) {
+        // Final translation only: progress 0 to 1
         const progress = (elapsed % DURATION) / DURATION;
         setAnimProgress(progress);
       } else {
@@ -258,7 +262,6 @@ const Robot2d = ({ angles, onAngleChange, selectedStep = 4, selectedJoint = 1, s
 
     // Horizontal grid lines and labels
     for (let y = 0; y < dimensions.height; y += GRID_SIZE_PX) {
-      const isOriginLine = Math.abs(y - centerY) < 0.5;
       gridLines.push(
         <Line
           key={`h-line-${y}`}
@@ -322,9 +325,12 @@ const Robot2d = ({ angles, onAngleChange, selectedStep = 4, selectedJoint = 1, s
       } else if (animProgress <= 3) {
         activeJoint = 2;
         localProgress = animProgress - 1; // 0 to 2 (translate + rotate)
-      } else {
+      } else if (animProgress <= 5) {
         activeJoint = 3;
         localProgress = animProgress - 3; // 0 to 2 (translate + rotate)
+      } else {
+        activeJoint = 4;
+        localProgress = animProgress - 5; // 0 to 1 (translate only)
       }
     }
 
@@ -353,13 +359,27 @@ const Robot2d = ({ angles, onAngleChange, selectedStep = 4, selectedJoint = 1, s
       targetAngle = fkResult.angles.absolute3;
       translateLength = L2 * SCALE;
       frameLabel = '₃';
+    } else if (activeJoint === 4) {
+      // Step 4: Translate L₃ from joint2 along θ₁+θ₂+θ₃ (no additional rotation)
+      startPos = positions.joint2;
+      startAngle = fkResult.angles.absolute3;
+      targetAngle = fkResult.angles.absolute3;
+      translateLength = L3 * SCALE;
+      frameLabel = '₄';
+      rotationOnly = true;
     } else {
       return null;
     }
 
     let currentX, currentY, currentAngle;
 
-    if (rotationOnly) {
+    if (activeJoint === 4) {
+      // Translation-only final segment
+      currentAngle = startAngle;
+      const dist = translateLength * Math.min(localProgress, 1);
+      currentX = startPos.x + dist * Math.cos(startAngle);
+      currentY = startPos.y - dist * Math.sin(startAngle);
+    } else if (rotationOnly) {
       // Only rotation phase, no translation
       currentX = startPos.x;
       currentY = startPos.y;
@@ -442,14 +462,21 @@ const Robot2d = ({ angles, onAngleChange, selectedStep = 4, selectedJoint = 1, s
       } else if (animProgress <= 3) {
         activeJoint = 2;
         localProgress = animProgress - 1;
-      } else {
+      } else if (animProgress <= 5) {
         activeJoint = 3;
         localProgress = animProgress - 3;
+      } else {
+        activeJoint = 4;
+        localProgress = animProgress - 5;
       }
     }
 
-    const isRotationPhase = (activeJoint === 1) ? localProgress <= 1 : localProgress > 1;
-    const isTranslationPhase = (activeJoint === 1) ? false : localProgress <= 1;
+    const isRotationPhase = activeJoint === 1
+      ? localProgress <= 1
+      : (activeJoint === 4 ? false : localProgress > 1);
+    const isTranslationPhase = activeJoint === 1
+      ? false
+      : (activeJoint === 4 ? true : localProgress <= 1);
 
     let targetLength, theta_n;
     if (activeJoint === 1) {
@@ -461,13 +488,15 @@ const Robot2d = ({ angles, onAngleChange, selectedStep = 4, selectedJoint = 1, s
     } else if (activeJoint === 3) {
       targetLength = L3;
       theta_n = angles.theta3;
+    } else if (activeJoint === 4) {
+      targetLength = L3;
+      theta_n = 0;
     } else {
       return null;
     }
 
     const formatNegZero = (val) => (Math.abs(val) < 0.001 ? "0.00" : val.toFixed(2));
 
-    const deg = (theta_n * 180 / Math.PI).toFixed(1);
     const cosVal = formatNegZero(Math.cos(theta_n));
     const sinVal = formatNegZero(Math.sin(theta_n));
     const negSinValCalc = -Math.sin(theta_n);

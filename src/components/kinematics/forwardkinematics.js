@@ -176,7 +176,7 @@ export const getAngle = (point1, point2) => {
   return Math.atan2(point1.y - point2.y, point2.x - point1.x);
 };
 
-export default {
+const forwardKinematicsApi = {
   calculateForwardKinematics,
   calculateForwardKinematicsDegrees,
   getProjections,
@@ -185,3 +185,5 @@ export default {
   DEFAULT_LINK_LENGTHS,
   DEFAULT_CONFIG,
 };
+
+export default forwardKinematicsApi;

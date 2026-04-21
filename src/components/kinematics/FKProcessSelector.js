@@ -1,75 +1,118 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Button, Typography, Paper, Chip, LinearProgress } from '@mui/material';
-import { calculateForwardKinematics } from './forwardkinematics';
+import { Box, Button, Typography, Paper, LinearProgress } from '@mui/material';
+import { BlockMath, InlineMath } from 'react-katex';
+import fkProcessSteps from './fkProcessSteps';
+import 'katex/dist/katex.min.css';
 import './fkprocessselector.css';
 /**
  * FK Process Step Selector Component
  * Shows step-by-step forward kinematics visualization with interactive step selection
  */
-const FKProcessSelector = ({ angles, linkLengths = { L1: 40, L2: 70, L3: 50 }, onStepChange }) => {
+const FKProcessSelector = ({ onStepChange, isPlayAllActive = false }) => {
   const [selectedStep, setSelectedStep] = useState(4);
+
   useEffect(() => {
-    onStepChange(selectedStep);
-  }, [selectedStep]);
+    if (onStepChange) {
+      onStepChange(selectedStep);
+    }
+  }, [selectedStep, onStepChange]);
 
-  // Calculate FK with canvas center as base
-  const fkResult = calculateForwardKinematics(angles, {
-    linkLengths,
-    scale: 2,
-    baseX: 0,
-    baseY: 0,
-  });
+  const renderInlineParts = (parts = [], keyPrefix = 'part') => (
+    <Typography
+      variant="body2"
+      sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 0.5, lineHeight: 1.7 }}
+    >
+      {parts.map((part, index) => {
+        if (typeof part === 'string') {
+          return <span key={`${keyPrefix}-text-${index}`}>{part}</span>;
+        }
 
-  const { base, joint1, joint2, joint3, angles: cumulativeAngles } = fkResult;
+        if (part.type === 'inlineMath') {
+          return (
+            <InlineMath
+              key={`${keyPrefix}-inline-${index}`}
+              math={part.value}
+            />
+          );
+        }
 
-  // Convert radians to degrees for display
-  const toDegrees = (rad) => (rad * 180 / Math.PI).toFixed(1);
+        return null;
+      })}
+    </Typography>
+  );
 
-  // Define steps with positions and descriptions
-  const steps = [
-    {
-      number: 0,
-      title: 'Base Frame',
-      description: 'Frame₀ at origin — world reference frame',
-      formula: 'T₀ = I (identity)',
-      joints: ['base'],
-      details: `Base frame (X₀, Y₀) at origin\nNo rotation, no translation`,
-    },
-    {
-      number: 1,
-      title: 'Joint-1',
-      description: `Rotate frame by θ₁ = ${toDegrees(angles.theta1)}° at origin`,
-      formula: 'T₀₁ = Rot(θ₁)',
-      joints: ['base'],
-      details: `Frame₁ at origin, rotated by θ₁\nRotation only — no translation yet`,
-    },
-    {
-      number: 2,
-      title: 'Joint-2',
-      description: `Translate L₁ = ${linkLengths.L1}mm along X₁, then rotate θ₂ = ${toDegrees(angles.theta2)}°`,
-      formula: 'T₁₂ = Trans(L₁, 0) · Rot(θ₂)',
-      joints: ['base', 'joint1'],
-      details: `Frame₂ at (${joint1.x.toFixed(1)}, ${joint1.y.toFixed(1)}) px\nTranslate L₁ along X₁, then rotate by θ₂`,
-    },
-    {
-      number: 3,
-      title: 'Joint-3',
-      description: `Translate L₂ = ${linkLengths.L2}mm along X₂, then rotate θ₃ = ${toDegrees(angles.theta3)}°`,
-      formula: 'T₂₃ = Trans(L₂, 0) · Rot(θ₃)',
-      joints: ['base', 'joint1', 'joint2'],
-      details: `Frame₃ at (${joint2.x.toFixed(1)}, ${joint2.y.toFixed(1)}) px\nTranslate L₂ along X₂, then rotate by θ₃`,
-    },
-    {
-      number: 4,
-      title: 'End-Effector',
-      description: `Animate full DH chain: Base → Frame₁ → Frame₂ → Frame₃`,
-      formula: 'T₀₃ = T₀₁ · T₁₂ · T₂₃',
-      joints: ['base', 'joint1', 'joint2', 'joint3'],
-      details: `End effector at (${joint3.x.toFixed(1)}, ${joint3.y.toFixed(1)}) px\nFull forward kinematics chain`,
-    },
-  ];
+  const renderStepContent = (step) => {
+    if (!Array.isArray(step.content) || step.content.length === 0) {
+      return (
+        <Box
+          sx={{
+            bgcolor: '#ffffff',
+            border: '1px solid #e8dfbe',
+            borderRadius: '6px',
+            p: 1,
+            overflowX: 'auto',
+          }}
+        >
+          <BlockMath math={step.latexMath || ''} />
+        </Box>
+      );
+    }
 
-  const currentStep = steps[selectedStep];
+    return step.content.map((item, index) => {
+      if (typeof item === 'string') {
+        return (
+          <Typography key={`item-text-${index}`} variant="body2" sx={{ lineHeight: 1.7 }}>
+            {item}
+          </Typography>
+        );
+      }
+
+      if (item.type === 'line') {
+        return <Box key={`item-line-${index}`}>{renderInlineParts(item.parts, `line-${index}`)}</Box>;
+      }
+
+      if (item.type === 'text') {
+        return (
+          <Typography key={`item-p-${index}`} variant="body2" sx={{ lineHeight: 1.7 }}>
+            {item.value}
+          </Typography>
+        );
+      }
+
+      if (item.type === 'inlineMath') {
+        return (
+          <Typography key={`item-inline-${index}`} variant="body2" sx={{ lineHeight: 1.7 }}>
+            <InlineMath math={item.value} />
+          </Typography>
+        );
+      }
+
+      if (item.type === 'blockMath') {
+        return (
+          <Box
+            key={`item-block-${index}`}
+            sx={{
+              bgcolor: '#ffffff',
+              border: '1px solid #e8dfbe',
+              borderRadius: '6px',
+              p: 1,
+              overflowX: 'auto',
+            }}
+          >
+            <BlockMath math={item.value} />
+          </Box>
+        );
+      }
+
+      if (item.type === 'spacer') {
+        return <Box key={`item-space-${index}`} sx={{ height: item.size || 8 }} />;
+      }
+
+      return null;
+    });
+  };
+
+  const currentStep = fkProcessSteps[selectedStep];
 
   // Notify parent of step selection
   const handleStepSelect = (step) => {
@@ -79,11 +122,10 @@ const FKProcessSelector = ({ angles, linkLengths = { L1: 40, L2: 70, L3: 50 }, o
     }
   };
 
-  const jointColorMap = {
-    base: { bgcolor: '#000', color: '#fff' },
-    joint1: { bgcolor: '#ffebee', color: '#d32f2f', borderColor: '#d32f2f' },
-    joint2: { bgcolor: '#e3f2fd', color: '#1976d2', borderColor: '#1976d2' },
-    joint3: { bgcolor: '#e8f5e9', color: '#388e3c', borderColor: '#388e3c' },
+  const handlePlayAll = () => {
+    if (onStepChange) {
+      onStepChange('play-all');
+    }
   };
 
   return (
@@ -92,12 +134,13 @@ const FKProcessSelector = ({ angles, linkLengths = { L1: 40, L2: 70, L3: 50 }, o
       <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1.5 }}>Forward Kinematics Process</Typography>
       {/* Step Buttons */}
       <Box sx={{ display: 'flex', gap: 1, mb: 1.5, overflowX: 'auto', py: 0.5, justifyContent: 'space-evenly' }}>
-        {steps.map((step) => (
+        {fkProcessSteps.map((step) => (
           <Button
             key={step.number}
             variant={selectedStep === step.number ? 'contained' : 'outlined'}
             size="small"
             onClick={() => handleStepSelect(step.number)}
+            disabled={isPlayAllActive}
             title={step.title}
             sx={{
               flexShrink: 0,
@@ -115,60 +158,40 @@ const FKProcessSelector = ({ angles, linkLengths = { L1: 40, L2: 70, L3: 50 }, o
             <Typography variant="caption" sx={{ opacity: 0.8 }}>{step.title.split(' ')[0]}</Typography>
           </Button>
         ))}
+        <Button
+          variant={isPlayAllActive ? 'contained' : 'outlined'}
+          color="secondary"
+          size="small"
+          onClick={handlePlayAll}
+          title={isPlayAllActive ? 'Stop full transform sequence' : 'Play full transform sequence'}
+          sx={{
+            flexShrink: 0,
+            minWidth: 88,
+            textTransform: 'none',
+            fontWeight: 700,
+            fontSize: '11px',
+            py: 0.8,
+            px: 1.6,
+            borderRadius: '8px',
+          }}
+        >
+          {isPlayAllActive ? 'Stop' : 'Play All'}
+        </Button>
       </Box>
 
-      {/* Current Step Details */}
-      <Paper variant="outlined" sx={{ p: 1.5, mb: 1.5 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5, borderBottom: '2px solid #f0f0f0', pb: 1 }}>
-          <Typography variant="subtitle2" fontWeight={600}>{currentStep.title}</Typography>
-          <Chip label={`Step ${currentStep.number}/4`} size="small" color="info" variant="outlined" sx={{ fontWeight: 600, fontSize: '10px' }} />
-        </Box>
-
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.2, fontSize: '12px' }}>
-          {/* Formula */}
-          <Box sx={{ borderLeft: '3px solid #1976d2', pl: 1.2, bgcolor: '#f8fbff', p: 1, borderRadius: '4px' }}>
-            <Typography variant="caption" fontWeight={600} display="block" sx={{ mb: 0.5 }}>Formula:</Typography>
-            <Typography variant="body2" component="code" sx={{ fontFamily: 'monospace', color: '#d32f2f', fontSize: '11px', wordBreak: 'break-all', lineHeight: 1.4, display: 'block' }}>
-              {currentStep.formula}
-            </Typography>
-          </Box>
-
-          {/* Calculation */}
-          <Box sx={{ borderLeft: '3px solid #1976d2', pl: 1.2, bgcolor: '#f8fbff', p: 1, borderRadius: '4px' }}>
-            <Typography variant="caption" fontWeight={600} display="block" sx={{ mb: 0.5 }}>Calculation:</Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ fontSize: '11px', lineHeight: 1.4 }}>
-              {currentStep.description}
-            </Typography>
-          </Box>
-
-          {/* Result */}
-          <Box sx={{ borderLeft: '3px solid #1976d2', pl: 1.2, bgcolor: '#f8fbff', p: 1, borderRadius: '4px' }}>
-            <Typography variant="caption" fontWeight={600} display="block" sx={{ mb: 0.5 }}>Result:</Typography>
-            <Box component="pre" sx={{ m: 0, bgcolor: 'white', p: 0.8, borderRadius: '3px', border: '1px solid #ddd', fontFamily: 'monospace', fontSize: '10px', color: '#333', lineHeight: 1.5, overflowX: 'auto' }}>
-              {currentStep.details}
-            </Box>
-          </Box>
-
-          {/* Joint Progression */}
-          <Box sx={{ borderLeft: '3px solid #388e3c', pl: 1.2, bgcolor: '#f1f8f4', p: 1, borderRadius: '4px' }}>
-            <Typography variant="caption" fontWeight={600} display="block" sx={{ mb: 0.8 }}>Joints shown:</Typography>
-            <Box sx={{ display: 'flex', gap: 0.8, flexWrap: 'wrap' }}>
-              {currentStep.joints.map((joint, idx) => (
-                <Chip
-                  key={joint}
-                  label={joint === 'base' ? 'Base' : `J${idx}`}
-                  size="small"
-                  sx={{
-                    fontSize: '10px',
-                    fontWeight: 600,
-                    height: 22,
-                    ...(jointColorMap[joint] || {}),
-                  }}
-                />
-              ))}
-            </Box>
-          </Box>
-        </Box>
+      <Paper
+        variant="outlined"
+        sx={{
+          p: 1.2,
+          mb: 1.5,
+          bgcolor: '#fffef8',
+          borderColor: '#e0d9b7',
+        }}
+      >
+        <Typography variant="caption" fontWeight={700} display="block" sx={{ mb: 0.8, color: '#6a5d1a' }}>
+          {currentStep.title}
+        </Typography>
+        {renderStepContent(currentStep)}
       </Paper>
 
       {/* Progress indicator */}

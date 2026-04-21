@@ -66,12 +66,12 @@ const Robot3d = ({ angles, selectedStep = 4, selectedJoint = 1, showFrameAnimati
   const [animProgress, setAnimProgress] = useState(0);
   const animationRef = useRef(null);
 
-  // 4 joints in 3D Play All: base yaw + 3 planar joints = 8 progress units (2 per joint)
-  // Single joint: 2 progress units
+  // 3D Play All: base yaw (2) + J1 (2) + J2 (2) + J3 (2) + final 3->4 translation (1) = 9 progress units
+  // Single joint: 2 progress units, except final 3->4 translation-only step = 1 unit
   useEffect(() => {
     let startTime;
-    const DURATION = selectedJoint === 0 ? 16000 : 4000; 
-    const TOTAL_PROGRESS = selectedJoint === 0 ? 8 : 2;
+    const DURATION = selectedJoint === 0 ? 18000 : 4000;
+    const TOTAL_PROGRESS = selectedJoint === 0 ? 9 : (selectedJoint === 4 ? 1 : 2);
 
     const animate = (time) => {
       if (!startTime) startTime = time;
@@ -102,7 +102,8 @@ const Robot3d = ({ angles, selectedStep = 4, selectedJoint = 1, showFrameAnimati
     if (animProgress <= 2) return { activeJoint: -1, localProgress: animProgress }; // base yaw
     if (animProgress <= 4) return { activeJoint: 1, localProgress: animProgress - 2 };
     if (animProgress <= 6) return { activeJoint: 2, localProgress: animProgress - 4 };
-    return { activeJoint: 3, localProgress: animProgress - 6 };
+    if (animProgress <= 8) return { activeJoint: 3, localProgress: animProgress - 6 };
+    return { activeJoint: 4, localProgress: animProgress - 8 };
   };
 
   // The arm always stays at the current thetaBase; only the arrows animate.
@@ -173,6 +174,11 @@ const Robot3d = ({ angles, selectedStep = 4, selectedJoint = 1, showFrameAnimati
       startAngle = fkResult.angles.absolute2; 
       targetAngle = fkResult.angles.absolute3; 
       targetLength = 5;
+    } else if (activeJoint === 4 && showLink3) {
+      startPos = posJ2;
+      startAngle = fkResult.angles.absolute3;
+      targetAngle = fkResult.angles.absolute3;
+      targetLength = 5;
     } else {
       return null;
     }
@@ -180,7 +186,10 @@ const Robot3d = ({ angles, selectedStep = 4, selectedJoint = 1, showFrameAnimati
     let currentAngle = startAngle;
     let currentDist = 0;
 
-    if (localProgress <= 1) {
+    if (activeJoint === 4) {
+      currentAngle = startAngle;
+      currentDist = targetLength * Math.min(localProgress, 1);
+    } else if (localProgress <= 1) {
       currentAngle = startAngle + (targetAngle - startAngle) * localProgress;
     } else {
       currentAngle = targetAngle;
@@ -223,8 +232,8 @@ const Robot3d = ({ angles, selectedStep = 4, selectedJoint = 1, showFrameAnimati
       );
     }
 
-    const isRotationPhase = localProgress <= 1;
-    const isTranslationPhase = localProgress > 1;
+    const isRotationPhase = activeJoint === 4 ? false : localProgress <= 1;
+    const isTranslationPhase = activeJoint === 4 ? true : localProgress > 1;
 
     let targetLength, theta_n;
     if (activeJoint === 1 && showLink1) {
@@ -236,13 +245,15 @@ const Robot3d = ({ angles, selectedStep = 4, selectedJoint = 1, showFrameAnimati
     } else if (activeJoint === 3 && showLink3) {
       targetLength = 50;
       theta_n = angles.theta3;
+    } else if (activeJoint === 4 && showLink3) {
+      targetLength = 50;
+      theta_n = 0;
     } else {
       return null;
     }
 
     const formatNegZero = (val) => (Math.abs(val) < 0.001 ? "0.00" : val.toFixed(2));
 
-    const deg = (theta_n * 180 / Math.PI).toFixed(1);
     const cosVal = formatNegZero(Math.cos(theta_n));
     const sinVal = formatNegZero(Math.sin(theta_n));
     const negSinValCalc = -Math.sin(theta_n);
