@@ -28,7 +28,7 @@ const fkProcessSteps = [
             },
             {
                 type: 'blockMath',
-                value: String.raw`^0T_1 = f(\theta_1) = \mathbf{Rot_z(\theta_1)}`,
+                value: String.raw`^0T_1 = f(\theta_1) = \mathbf{R(\theta_1)}`,
             },
             {
                 type: 'text',
@@ -63,7 +63,7 @@ S_1 & C_1 & 0 & 0 \\
             },
             {
                 type: 'blockMath',
-                value: String.raw`^0T_2 = f(\theta_1,\theta_2) = Rot_z(\theta_1) \cdot \mathbf{Trans(L_1) \cdot Rot_z(\theta_2)}`,
+                value: String.raw`^0T_2 = f(\theta_1,\theta_2) = R(\theta_1) \cdot \mathbf{T(L_1) \cdot R(\theta_2)}`,
             },
             {
                 type: 'text',
@@ -90,7 +90,7 @@ S_{12} & C_{12} & 0 & L_1S_1 \\
             },
             {
                 type: 'blockMath',
-                value: String.raw`^0T_3 = f(\theta_1,\theta_2,\theta_3) = Rot_z(\theta_1) \cdot Trans(L_1) \cdot Rot_z(\theta_2) \cdot \mathbf{Trans(L_2) \cdot Rot_z(\theta_3)}`,
+                value: String.raw`^0T_3 = f(\theta_1,\theta_2,\theta_3) = R(\theta_1) \cdot T(L_1) \cdot R(\theta_2) \cdot \mathbf{T(L_2) \cdot R(\theta_3)}`,
             },
             {
                 type: 'blockMath',

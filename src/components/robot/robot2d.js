@@ -1,13 +1,21 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Stage, Layer, Circle, Line, Text, Group, Arrow } from 'react-konva';
-import { Box, Paper, FormControlLabel, Checkbox, Typography } from '@mui/material';
+import { Box, Paper, FormControlLabel, Checkbox, Typography, IconButton, TextField, Button } from '@mui/material';
 import { calculateForwardKinematics } from '../kinematics/forwardkinematics';
+import SettingsIcon from '@mui/icons-material/Settings';
 
-const Robot2d = ({ angles, onAngleChange, selectedStep = 4, selectedJoint = 1, showFrameAnimation = false }) => {
-  // Link lengths in mm
-  const L1 = 40;  // mm
-  const L2 = 70;  // mm
-  const L3 = 50;  // mm
+const DEFAULT_ANGLES = {
+  thetaBase: 0,
+  theta1: Math.PI / 4,
+  theta2: Math.PI / 6,
+  theta3: -Math.PI / 3,
+};
+
+const DEFAULT_LINK_LENGTHS = { L1: 40, L2: 70, L3: 50 };
+
+const Robot2d = ({ angles, onAngleChange, selectedStep = 4, selectedJoint = 1, showFrameAnimation = false, linkLengths = { L1: 40, L2: 70, L3: 50 }, onLinkLengthsChange }) => {
+  // Link lengths in mm (configurable)
+  const { L1, L2, L3 } = linkLengths;
 
   // Scale factor: pixels per mm
   const SCALE = 2; // 2 pixels per mm
@@ -27,9 +35,14 @@ const Robot2d = ({ angles, onAngleChange, selectedStep = 4, selectedJoint = 1, s
 
   const [animProgress, setAnimProgress] = useState(0);
   const [showGrid, setShowGrid] = useState(true);
-  const [showProjections, setShowProjections] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [draftLinkLengths, setDraftLinkLengths] = useState(linkLengths);
   const animationRef = useRef(null);
   const containerRef = useRef(null);
+
+  useEffect(() => {
+    setDraftLinkLengths(linkLengths);
+  }, [linkLengths]);
 
   useEffect(() => {
     let startTime;
@@ -158,6 +171,59 @@ const Robot2d = ({ angles, onAngleChange, selectedStep = 4, selectedJoint = 1, s
   const showLink2 = selectedStep >= 3;
   const showLink3 = selectedStep >= 4;
 
+  const normalizeAngleDiff = (angleDiff) => {
+    let normalized = angleDiff;
+    while (normalized > Math.PI) normalized -= 2 * Math.PI;
+    while (normalized < -Math.PI) normalized += 2 * Math.PI;
+    return normalized;
+  };
+
+  const getArcMidAngle = (startAngle, endAngle) => {
+    const angleDiff = normalizeAngleDiff(endAngle - startAngle);
+    return startAngle + angleDiff / 2;
+  };
+
+  const getLinkLabelPosition = (from, to, linkAngle, arcMidAngle) => {
+    const midX = (from.x + to.x) / 2;
+    const midY = (from.y + to.y) / 2;
+
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    const length = Math.hypot(dx, dy) || 1;
+    const ux = dx / length;
+    const uy = dy / length;
+
+    const normalA = { x: -uy, y: ux };
+    const normalB = { x: uy, y: -ux };
+    const arcDirection = { x: Math.cos(arcMidAngle), y: -Math.sin(arcMidAngle) };
+
+    const dotA = normalA.x * arcDirection.x + normalA.y * arcDirection.y;
+    const dotB = normalB.x * arcDirection.x + normalB.y * arcDirection.y;
+    const chosenNormal = dotA < dotB ? normalA : normalB;
+
+    const offsetDistance = 18;
+    return {
+      x: midX + chosenNormal.x * offsetDistance,
+      y: midY + chosenNormal.y * offsetDistance,
+      rotation: -(linkAngle * 180) / Math.PI,
+    };
+  };
+
+  const handleResetDefaults = () => {
+    if (onAngleChange) {
+      Object.entries(DEFAULT_ANGLES).forEach(([joint, value]) => {
+        if (joint === 'thetaBase' || Object.prototype.hasOwnProperty.call(angles, joint)) {
+          onAngleChange(joint, value);
+        }
+      });
+    }
+
+    setDraftLinkLengths(DEFAULT_LINK_LENGTHS);
+    if (onLinkLengthsChange) {
+      onLinkLengthsChange(DEFAULT_LINK_LENGTHS);
+    }
+  };
+
   // Helper function to render coordinate frames
   const renderCoordinateFrame = (x, y, angle, label_x, label_y, axisLength = 60) => {
     const rotationRad = angle;
@@ -232,8 +298,12 @@ const Robot2d = ({ angles, onAngleChange, selectedStep = 4, selectedJoint = 1, s
     const centerX = dimensions.width / 2;
     const centerY = dimensions.height / 2;
 
+    // Anchor grid spacing to the world origin at canvas center.
+    const startX = centerX - Math.ceil(centerX / GRID_SIZE_PX) * GRID_SIZE_PX;
+    const startY = centerY - Math.ceil(centerY / GRID_SIZE_PX) * GRID_SIZE_PX;
+
     // Vertical grid lines and labels
-    for (let x = 0; x < dimensions.width; x += GRID_SIZE_PX) {
+    for (let x = startX; x < dimensions.width; x += GRID_SIZE_PX) {
       gridLines.push(
         <Line
           key={`v-line-${x}`}
@@ -246,7 +316,8 @@ const Robot2d = ({ angles, onAngleChange, selectedStep = 4, selectedJoint = 1, s
 
       // Add label every other grid line
       const mmDistance = Math.round((x - centerX) / SCALE);
-      if (x % (GRID_SIZE_PX * 2) === 0 && mmDistance !== -4) {
+      const gridIndex = Math.round((x - centerX) / GRID_SIZE_PX);
+      if (gridIndex % 2 === 0 && mmDistance !== -4) {
         gridLabels.push(
           <Text
             key={`v-label-${x}`}
@@ -261,7 +332,7 @@ const Robot2d = ({ angles, onAngleChange, selectedStep = 4, selectedJoint = 1, s
     }
 
     // Horizontal grid lines and labels
-    for (let y = 0; y < dimensions.height; y += GRID_SIZE_PX) {
+    for (let y = startY; y < dimensions.height; y += GRID_SIZE_PX) {
       gridLines.push(
         <Line
           key={`h-line-${y}`}
@@ -274,7 +345,8 @@ const Robot2d = ({ angles, onAngleChange, selectedStep = 4, selectedJoint = 1, s
 
       // Add label every other grid line
       const mmDistance = Math.round((centerY - y) / SCALE);
-      if (y % (GRID_SIZE_PX * 2) === 0 && mmDistance !== -4) {
+      const gridIndex = Math.round((centerY - y) / GRID_SIZE_PX);
+      if (gridIndex % 2 === 0 && mmDistance !== -4) {
         gridLabels.push(
           <Text
             key={`h-label-${y}`}
@@ -309,6 +381,112 @@ const Robot2d = ({ angles, onAngleChange, selectedStep = 4, selectedJoint = 1, s
     );
 
     return [...gridLines, ...gridLabels];
+  };
+
+  // Helper function to render an angle arc with dashed extension
+  const renderAngleArc = (centerX, centerY, startAngle, endAngle, arcRadius = 40, angleValue, label) => {
+    const elements = [];
+    const extensionLength = 60;
+    const arcStartX = centerX + extensionLength * Math.cos(startAngle);
+    const arcStartY = centerY - extensionLength * Math.sin(startAngle);
+
+    // Dashed extension line
+    elements.push(
+      <Line
+        key={`ext-${label}`}
+        points={[centerX, centerY, arcStartX, arcStartY]}
+        stroke="#999"
+        strokeWidth={1}
+        dash={[4, 4]}
+        opacity={0.6}
+      />
+    );
+
+    // Arc segments with gap for text
+    const angle1Rad = startAngle;
+    const angle2Rad = endAngle;
+    const angleDiff = normalizeAngleDiff(angle2Rad - angle1Rad);
+
+    // Skip rendering entirely if angle is less than 20 degrees
+    const minAngleRad = (20 * Math.PI) / 180;
+    if (Math.abs(angleDiff) < minAngleRad) {
+      return elements; // Return empty, don't show arc for small angles
+    }
+
+    const segments = 30; // Number of line segments for arc
+    const gapAngle = 0.4; // Gap size in radians for text
+    const midAngle = getArcMidAngle(angle1Rad, angle2Rad);
+    const gapStart = midAngle - gapAngle / 2;
+    const gapEnd = midAngle + gapAngle / 2;
+
+    // Draw arc in two parts (before and after gap)
+    // Part 1: from start to gap start
+    if (Math.abs(angle1Rad - gapStart) > 0.05) {
+      const arcPoints1 = [];
+      const steps1 = Math.max(1, Math.ceil(segments * Math.abs(gapStart - angle1Rad) / Math.abs(angleDiff)));
+      for (let i = 0; i <= steps1; i++) {
+        const t = i / steps1;
+        const ang = angle1Rad + t * (gapStart - angle1Rad);
+        arcPoints1.push(centerX + arcRadius * Math.cos(ang));
+        arcPoints1.push(centerY - arcRadius * Math.sin(ang));
+      }
+      if (arcPoints1.length > 2) {
+        elements.push(
+          <Line
+            key={`arc1-${label}`}
+            points={arcPoints1}
+            stroke="#666"
+            strokeWidth={1.5}
+            fill={null}
+          />
+        );
+      }
+    }
+
+    // Part 2: from gap end to end angle
+    if (Math.abs(angle2Rad - gapEnd) > 0.05) {
+      const arcPoints2 = [];
+      const steps2 = Math.max(1, Math.ceil(segments * Math.abs(angle2Rad - gapEnd) / Math.abs(angleDiff)));
+      for (let i = 0; i <= steps2; i++) {
+        const t = i / steps2;
+        const ang = gapEnd + t * (angle2Rad - gapEnd);
+        arcPoints2.push(centerX + arcRadius * Math.cos(ang));
+        arcPoints2.push(centerY - arcRadius * Math.sin(ang));
+      }
+      if (arcPoints2.length > 2) {
+        elements.push(
+          <Line
+            key={`arc2-${label}`}
+            points={arcPoints2}
+            stroke="#666"
+            strokeWidth={1.5}
+            fill={null}
+          />
+        );
+      }
+    }
+
+    // Angle text at midpoint
+    const textX = centerX + (arcRadius + 15) * Math.cos(midAngle);
+    const textY = centerY - (arcRadius + 15) * Math.sin(midAngle);
+    const textAngleDeg = -(midAngle * 180 / Math.PI);
+
+    elements.push(
+      <Text
+        key={`angle-text-${label}`}
+        text={`${angleValue}°`}
+        x={textX}
+        y={textY}
+        fontSize={11}
+        fill="#333"
+        fontStyle="bold"
+        offsetX={12}
+        offsetY={5}
+        rotation={textAngleDeg}
+      />
+    );
+
+    return elements;
   };
 
   const renderAnimatedFrame = () => {
@@ -613,6 +791,28 @@ const Robot2d = ({ angles, onAngleChange, selectedStep = 4, selectedJoint = 1, s
             {/* Link 1 */}
             {showLink1 && (
               <>
+                {(() => {
+                  const theta1MidAngle = getArcMidAngle(0, fkResult.angles.absolute1);
+                  const labelPos1 = getLinkLabelPosition(
+                    positions.base,
+                    positions.joint1,
+                    fkResult.angles.absolute1,
+                    theta1MidAngle
+                  );
+
+                  return (
+                    <Text
+                      text={`${L1}mm`}
+                      x={labelPos1.x}
+                      y={labelPos1.y}
+                      offsetX={20}
+                      offsetY={8}
+                      rotation={labelPos1.rotation}
+                      fontSize={12}
+                      fill="black"
+                    />
+                  );
+                })()}
                 <Line
                   points={[
                     positions.base.x, positions.base.y,
@@ -621,52 +821,42 @@ const Robot2d = ({ angles, onAngleChange, selectedStep = 4, selectedJoint = 1, s
                   stroke="black"
                   strokeWidth={2}
                 />
-                {/* Link 1 - Dashed projections */}
-                {showProjections && (
-                  <>
-                    <Line
-                      points={[
-                        positions.base.x, positions.base.y,
-                        positions.joint1.x, positions.base.y
-                      ]}
-                      stroke="blue"
-                      strokeWidth={1}
-                      dash={[5, 5]}
-                    />
-                    <Line
-                      points={[
-                        positions.joint1.x, positions.base.y,
-                        positions.joint1.x, positions.joint1.y
-                      ]}
-                      stroke="blue"
-                      strokeWidth={1}
-                      dash={[5, 5]}
-                    />
-                  </>
+                {/* Angle arc for θ1 (at base, from 0 to absolute1) */}
+                {renderAngleArc(
+                  positions.base.x, positions.base.y,
+                  0,
+                  fkResult.angles.absolute1,
+                  40,
+                  (angles.theta1 * 180 / Math.PI).toFixed(1),
+                  'theta1'
                 )}
-                {/* Link 1 angle marker */}
-                <Text
-                  text={`θ1: ${(angles.theta1 * 180 / Math.PI).toFixed(1)}°`}
-                  x={positions.base.x + 20}
-                  y={positions.base.y - 20}
-                  fontSize={11}
-                  fill="black"
-                />
-                <Text
-                  text={`L1: ${L1}mm`}
-                  x={(positions.base.x + positions.joint1.x) / 2}
-                  y={(positions.base.y + positions.joint1.y) / 2}
-                  offsetX={25}
-                  offsetY={15}
-                  rotation={-fkResult.angles.absolute1 * 180 / Math.PI}
-                  fontSize={12}
-                  fill="black"
-                />
               </>
             )}
             {/* Link 2 */}
             {showLink2 && (
               <>
+                {(() => {
+                  const theta2MidAngle = getArcMidAngle(fkResult.angles.absolute1, fkResult.angles.absolute2);
+                  const labelPos2 = getLinkLabelPosition(
+                    positions.joint1,
+                    positions.joint2,
+                    fkResult.angles.absolute2,
+                    theta2MidAngle
+                  );
+
+                  return (
+                    <Text
+                      text={`${L2}mm`}
+                      x={labelPos2.x}
+                      y={labelPos2.y}
+                      offsetX={20}
+                      offsetY={8}
+                      rotation={labelPos2.rotation}
+                      fontSize={12}
+                      fill="black"
+                    />
+                  );
+                })()}
                 <Line
                   points={[
                     positions.joint1.x, positions.joint1.y,
@@ -675,52 +865,42 @@ const Robot2d = ({ angles, onAngleChange, selectedStep = 4, selectedJoint = 1, s
                   stroke="black"
                   strokeWidth={2}
                 />
-                {/* Link 2 - Dashed projections */}
-                {showProjections && (
-                  <>
-                    <Line
-                      points={[
-                        positions.joint1.x, positions.joint1.y,
-                        positions.joint2.x, positions.joint1.y
-                      ]}
-                      stroke="green"
-                      strokeWidth={1}
-                      dash={[5, 5]}
-                    />
-                    <Line
-                      points={[
-                        positions.joint2.x, positions.joint1.y,
-                        positions.joint2.x, positions.joint2.y
-                      ]}
-                      stroke="green"
-                      strokeWidth={1}
-                      dash={[5, 5]}
-                    />
-                  </>
+                {/* Angle arc for θ2 (at joint1, from absolute1 to absolute2) */}
+                {renderAngleArc(
+                  positions.joint1.x, positions.joint1.y,
+                  fkResult.angles.absolute1,
+                  fkResult.angles.absolute2,
+                  40,
+                  (angles.theta2 * 180 / Math.PI).toFixed(1),
+                  'theta2'
                 )}
-                {/* Link 2 angle marker */}
-                <Text
-                  text={`θ2: ${(angles.theta2 * 180 / Math.PI).toFixed(1)}°`}
-                  x={positions.joint1.x + 20}
-                  y={positions.joint1.y - 20}
-                  fontSize={11}
-                  fill="black"
-                />
-                <Text
-                  text={`L2: ${L2}mm`}
-                  x={(positions.joint1.x + positions.joint2.x) / 2}
-                  y={(positions.joint1.y + positions.joint2.y) / 2}
-                  offsetX={25}
-                  offsetY={15}
-                  rotation={-fkResult.angles.absolute2 * 180 / Math.PI}
-                  fontSize={12}
-                  fill="black"
-                />
               </>
             )}
             {/* Link 3 */}
             {showLink3 && (
               <>
+                {(() => {
+                  const theta3MidAngle = getArcMidAngle(fkResult.angles.absolute2, fkResult.angles.absolute3);
+                  const labelPos3 = getLinkLabelPosition(
+                    positions.joint2,
+                    positions.joint3,
+                    fkResult.angles.absolute3,
+                    theta3MidAngle
+                  );
+
+                  return (
+                    <Text
+                      text={`${L3}mm`}
+                      x={labelPos3.x}
+                      y={labelPos3.y}
+                      offsetX={20}
+                      offsetY={8}
+                      rotation={labelPos3.rotation}
+                      fontSize={12}
+                      fill="black"
+                    />
+                  );
+                })()}
                 <Line
                   points={[
                     positions.joint2.x, positions.joint2.y,
@@ -729,47 +909,15 @@ const Robot2d = ({ angles, onAngleChange, selectedStep = 4, selectedJoint = 1, s
                   stroke="black"
                   strokeWidth={2}
                 />
-                {/* Link 3 - Dashed projections */}
-                {showProjections && (
-                  <>
-                    <Line
-                      points={[
-                        positions.joint2.x, positions.joint2.y,
-                        positions.joint3.x, positions.joint2.y
-                      ]}
-                      stroke="red"
-                      strokeWidth={1}
-                      dash={[5, 5]}
-                    />
-                    <Line
-                      points={[
-                        positions.joint3.x, positions.joint2.y,
-                        positions.joint3.x, positions.joint3.y
-                      ]}
-                      stroke="red"
-                      strokeWidth={1}
-                      dash={[5, 5]}
-                    />
-                  </>
+                {/* Angle arc for θ3 (at joint2, from absolute2 to absolute3) */}
+                {renderAngleArc(
+                  positions.joint2.x, positions.joint2.y,
+                  fkResult.angles.absolute2,
+                  fkResult.angles.absolute3,
+                  40,
+                  (angles.theta3 * 180 / Math.PI).toFixed(1),
+                  'theta3'
                 )}
-                {/* Link 3 angle marker */}
-                <Text
-                  text={`θ3: ${(angles.theta3 * 180 / Math.PI).toFixed(1)}°`}
-                  x={positions.joint2.x + 20}
-                  y={positions.joint2.y - 20}
-                  fontSize={11}
-                  fill="black"
-                />
-                <Text
-                  text={`L3: ${L3}mm`}
-                  x={(positions.joint2.x + positions.joint3.x) / 2}
-                  y={(positions.joint2.y + positions.joint3.y) / 2}
-                  offsetX={25}
-                  offsetY={15}
-                  rotation={-fkResult.angles.absolute3 * 180 / Math.PI}
-                  fontSize={12}
-                  fill="black"
-                />
               </>
             )}
 
@@ -793,12 +941,76 @@ const Robot2d = ({ angles, onAngleChange, selectedStep = 4, selectedJoint = 1, s
             control={<Checkbox size="small" checked={showGrid} onChange={(e) => setShowGrid(e.target.checked)} />}
             label={<Typography variant="body2">Show Grid Lines</Typography>}
           />
-          <FormControlLabel
-            control={<Checkbox size="small" checked={showProjections} onChange={(e) => setShowProjections(e.target.checked)} />}
-            label={<Typography variant="body2">Show Joint Projections</Typography>}
-          />
         </Box>
       </Paper>
+
+      {showSettings && (
+        <Paper sx={{ position: 'absolute', left: 20, bottom: 72, p: 1.5, borderRadius: 2, zIndex: 12, minWidth: 180, bgcolor: 'rgba(255,255,255,0.95)', boxShadow: '0 6px 18px rgba(0,0,0,0.16)' }}>
+          <Typography variant="subtitle2" sx={{ mb: 1 }}>Link Lengths (mm)</Typography>
+          <Box sx={{ display: 'grid', gap:2 }}>
+            {['L1', 'L2', 'L3'].map((key) => (
+              <TextField
+                key={key}
+                size="small"
+                type="number"
+                label={key}
+                inputProps={{ min: 1, step: 1 }}
+                value={draftLinkLengths[key]}
+                onChange={(e) => {
+                  const raw = Number(e.target.value);
+                  setDraftLinkLengths((prev) => ({
+                    ...prev,
+                    [key]: Number.isFinite(raw) ? raw : prev[key],
+                  }));
+                }}
+              />
+            ))}
+          </Box>
+          <Box sx={{ display: 'flex', gap: 1, mt: 1.2 }}>
+            <Button
+              size="small"
+              variant="contained"
+              onClick={() => {
+                const sanitized = {
+                  L1: Math.max(1, Number(draftLinkLengths.L1) || L1),
+                  L2: Math.max(1, Number(draftLinkLengths.L2) || L2),
+                  L3: Math.max(1, Number(draftLinkLengths.L3) || L3),
+                };
+                if (onLinkLengthsChange) {
+                  onLinkLengthsChange(sanitized);
+                }
+                setShowSettings(false);
+              }}
+            >
+              Apply
+            </Button>
+            <Button size="small" variant="outlined" color="warning" onClick={handleResetDefaults}>
+              Reset Defaults
+            </Button>
+            <Button size="small" variant="outlined" onClick={() => setShowSettings(false)}>
+              Close
+            </Button>
+          </Box>
+        </Paper>
+      )}
+
+      <IconButton
+        aria-label="settings"
+        sx={{
+          position: 'absolute',
+          left: 20,
+          bottom: 20,
+          zIndex: 11,
+          bgcolor: 'rgba(255,255,255,0.9)',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
+          '&:hover': {
+            bgcolor: '#ffffff',
+          },
+        }}
+        onClick={() => setShowSettings((prev) => !prev)}
+      >
+        <SettingsIcon />
+      </IconButton>
     </Box>
   );
 };

@@ -5,6 +5,8 @@ import { Box, Paper, Typography } from '@mui/material';
 import * as THREE from 'three';
 import { calculateForwardKinematics } from '../kinematics/forwardkinematics';
 
+const SHOW_MATRIX_OVERLAY = false;
+
 const Link3D = ({ start, end, radius = 0.2, color = "black" }) => {
   const { position, quaternion, length } = useMemo(() => {
     const startVec = new THREE.Vector3(...start);
@@ -211,6 +213,7 @@ const Robot3d = ({ angles, selectedStep = 4, selectedJoint = 1, showFrameAnimati
   };
 
   const renderMatrixOverlay = () => {
+    if (!SHOW_MATRIX_OVERLAY) return null;
     if (!showFrameAnimation) return null;
 
     const { activeJoint, localProgress } = getActiveJointAndProgress();
