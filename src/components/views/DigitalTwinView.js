@@ -2,29 +2,17 @@ import { useState, useRef } from 'react';
 import { Box } from '@mui/material';
 import ControlPanel from '../digitaltwin/ControlPanel';
 import Settings from '../digitaltwin/Settings';
-import Robot2d from '../robot/robot2d';
+import URDFSceneViewport from '../digitaltwin/URDFSceneViewport';
 
-const DEFAULT_ANGLES = {
-  thetaBase: 0,
-  theta1: Math.PI / 4,
-  theta2: Math.PI / 6,
-  theta3: -Math.PI / 3,
-};
-
-const DEFAULT_LINK_LENGTHS = { L1: 40, L2: 70, L3: 50 };
+const STEP_MAX = 1023;
+const DEG_PER_STEP = 0.29;
+const ANGLE_MAX = parseFloat((STEP_MAX * DEG_PER_STEP).toFixed(2));
+const DEFAULT_JOINTS = { J1: ANGLE_MAX / 2, J2: ANGLE_MAX / 2, J3: ANGLE_MAX / 2, J4: ANGLE_MAX / 2, J5: ANGLE_MAX / 2 };
 
 function DigitalTwinView({ activeSection = 'control', onSectionChange = () => {} }) {
   const [leftPanelWidth, setLeftPanelWidth] = useState(25); // percentage
+  const [jointTargets, setJointTargets] = useState(DEFAULT_JOINTS);
   const isDraggingRef = useRef(false);
-  const [angles, setAngles] = useState(DEFAULT_ANGLES);
-  const [linkLengths, setLinkLengths] = useState(DEFAULT_LINK_LENGTHS);
-
-  const handleAngleChange = (joint, value) => {
-    setAngles(prev => ({
-      ...prev,
-      [joint]: value
-    }));
-  };
 
   const handleMouseDown = () => {
     isDraggingRef.current = true;
@@ -94,7 +82,7 @@ function DigitalTwinView({ activeSection = 'control', onSectionChange = () => {}
         </Box>
         <Box sx={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
           <Box sx={{ display: activeSection === 'control' ? 'block' : 'none', height: '100%' }}>
-            <ControlPanel />
+            <ControlPanel jointTargets={jointTargets} setJointTargets={setJointTargets} />
           </Box>
           <Box sx={{ display: activeSection === 'settings' ? 'block' : 'none', height: '100%' }}>
             <Settings />
@@ -128,15 +116,7 @@ function DigitalTwinView({ activeSection = 'control', onSectionChange = () => {}
           bgcolor: 'white',
         }}
       >
-        <Robot2d
-          angles={angles}
-          onAngleChange={handleAngleChange}
-          linkLengths={linkLengths}
-          onLinkLengthsChange={setLinkLengths}
-          selectedStep={4}
-          selectedJoint={0}
-          showFrameAnimation={false}
-        />
+        <URDFSceneViewport jointTargets={jointTargets} />
       </Box>
     </Box>
   );

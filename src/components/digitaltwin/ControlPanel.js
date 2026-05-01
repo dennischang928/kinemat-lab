@@ -19,13 +19,12 @@ const STEP_MAX = 1023;
 const DEG_PER_STEP = 0.29;
 const ANGLE_MIN = 0;
 const ANGLE_MAX = parseFloat((STEP_MAX * DEG_PER_STEP).toFixed(2)); // ~296.67°
-const DEFAULT_JOINTS = { J1: ANGLE_MAX / 2, J2: ANGLE_MAX / 2, J3: ANGLE_MAX / 2, J4: ANGLE_MAX / 2, J5: ANGLE_MAX / 2 };
 const angleToSteps = (deg) => Math.round(Math.max(STEP_MIN, Math.min(STEP_MAX, deg / DEG_PER_STEP)));
 const stepsToAngle = (steps) => parseFloat((steps * DEG_PER_STEP).toFixed(2));
 const FEEDRATE_MIN = 10;
 const FEEDRATE_MAX = 1000;
 
-function ControlPanel() {
+function ControlPanel({ jointTargets, setJointTargets }) {
   const {
     isConnected,
     error,
@@ -40,7 +39,6 @@ function ControlPanel() {
   } = useSerialConnection();
 
   const [baudRate, setBaudRate] = useState(115200);
-  const [jointTargets, setJointTargets] = useState(DEFAULT_JOINTS);
   const [feedrate, setFeedrate] = useState(100);
   const [hasSynced, setHasSynced] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -428,43 +426,43 @@ function ControlPanel() {
         ))}
       </Menu>
 
-      {isConnected && (
-        <Paper sx={{ p: 2, mb: 3 }}>
-          <Stack spacing={2}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Tooltip title="Homing sequence" arrow>
-                <IconButton
-                  onClick={() => handleQuickCommand('M140')}
-                  size="large"
-                  color="primary"
-                  aria-label="home"
-                  disabled={!isTorqueEnabled}
-                >
-                  <HomeIcon />
-                </IconButton>
-              </Tooltip>
-              <Tooltip title="Torque on" arrow>
-                <IconButton
-                  onClick={() => handleQuickCommand('M17')}
-                  size="large"
-                  color="primary"
-                  aria-label="power-on"
-                >
-                  <PowerIcon />
-                </IconButton>
-              </Tooltip>
-              <Tooltip title="Torque off" arrow>
-                <IconButton
-                  onClick={() => handleQuickCommand('M18')}
-                  size="large"
-                  aria-label="power-off"
-                  disabled={!isTorqueEnabled}
-                  sx={{ color: '#f44336' }}
-                >
-                  <PowerOffIcon />
-                </IconButton>
-              </Tooltip>
-            </Box>
+      <Paper sx={{ p: 2, mb: 3 }}>
+        <Stack spacing={2}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Tooltip title="Homing sequence" arrow>
+              <IconButton
+                onClick={() => handleQuickCommand('M140')}
+                size="large"
+                color="primary"
+                aria-label="home"
+                disabled={!isConnected || !isTorqueEnabled}
+              >
+                <HomeIcon />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Torque on" arrow>
+              <IconButton
+                onClick={() => handleQuickCommand('M17')}
+                size="large"
+                color="primary"
+                aria-label="power-on"
+                disabled={!isConnected}
+              >
+                <PowerIcon />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Torque off" arrow>
+              <IconButton
+                onClick={() => handleQuickCommand('M18')}
+                size="large"
+                aria-label="power-off"
+                disabled={!isConnected || !isTorqueEnabled}
+                sx={{ color: '#f44336' }}
+              >
+                <PowerOffIcon />
+              </IconButton>
+            </Tooltip>
+          </Box>
 
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               {JOINT_KEYS.map((joint, index) => (
@@ -481,7 +479,6 @@ function ControlPanel() {
                       value={jointTargets[joint]}
                       onChange={(e, val) => handleJointChange(joint, val)}
                       size="small"
-                      disabled={!isTorqueEnabled}
                       sx={{ ...sliderSx, flex: 1, ml: 0 }}
                     />
                     <TextField
@@ -490,7 +487,6 @@ function ControlPanel() {
                       inputProps={{ min: ANGLE_MIN, max: ANGLE_MAX, step: DEG_PER_STEP }}
                       value={jointTargets[joint]}
                       onChange={(e) => handleJointChange(joint, e.target.value)}
-                      disabled={!isTorqueEnabled}
                       sx={inputSx}
                     />
                   </Box>
@@ -524,7 +520,7 @@ function ControlPanel() {
               <Button
                 variant="outlined"
                 onClick={handleSyncFromArm}
-                disabled={isSyncing || !isTorqueEnabled}
+                disabled={!isConnected || isSyncing || !isTorqueEnabled}
                 fullWidth
               >
                 {isSyncing ? 'Syncing...' : 'Sync from Arm'}
@@ -532,7 +528,7 @@ function ControlPanel() {
               <Button
                 variant="contained"
                 onClick={handleSendSliders}
-                disabled={!hasSynced || !isTorqueEnabled}
+                disabled={!isConnected || !hasSynced || !isTorqueEnabled}
                 fullWidth
               >
                 Send to Arm
@@ -540,7 +536,6 @@ function ControlPanel() {
             </Stack>
           </Stack>
         </Paper>
-      )}
 
       <Box sx={{ position: 'sticky', bottom: 0, mt: 2, zIndex: 2 }}>
         <Fade in={showErrorAlert} timeout={350}>
