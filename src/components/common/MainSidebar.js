@@ -1,12 +1,18 @@
 import { Box, List, ListItemButton, Tooltip } from '@mui/material';
+import { useNavigate, useLocation } from 'react-router';
 import TuneIcon from '@mui/icons-material/Tune';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
 
-function MainSidebar({ activeView, onViewChange }) {
+function MainSidebar() {
+  const navigate = useNavigate();
+  const location = useLocation();
+
   const menuItems = [
-    { id: 'kinematics', label: '2D Kinematics', icon: TuneIcon },
-    { id: 'digitaltwin', label: 'Digital Twin', icon: SmartToyIcon },
+    { id: 'kinematics', path: '/kinematics', label: '2D Kinematics', icon: TuneIcon },
+    { id: 'digitaltwin', path: '/digitaltwin', label: 'Digital Twin', icon: SmartToyIcon },
   ];
+
+  const isActive = (path) => location.pathname === path || (path === '/kinematics' && location.pathname === '/');
 
   return (
     <Box
@@ -44,14 +50,14 @@ function MainSidebar({ activeView, onViewChange }) {
         {menuItems.map((item) => (
           <Tooltip key={item.id} title={item.label} placement="right" arrow>
             <ListItemButton
-              onClick={() => onViewChange(item.id)}
-              selected={activeView === item.id}
+              onClick={() => navigate(item.path)}
+              selected={isActive(item.path)}
               sx={{
                 minHeight: 48,
                 borderRadius: 2,
                 justifyContent: 'center',
-                bgcolor: activeView === item.id ? '#2f2f2f' : 'transparent',
-                border: activeView === item.id ? '1px solid #444' : '1px solid transparent',
+                bgcolor: isActive(item.path) ? '#2f2f2f' : 'transparent',
+                border: isActive(item.path) ? '1px solid #444' : '1px solid transparent',
                 '&:hover': {
                   bgcolor: '#2a2a2a',
                 },
@@ -64,7 +70,7 @@ function MainSidebar({ activeView, onViewChange }) {
                 component={item.icon}
                 sx={{
                   fontSize: 28,
-                  color: activeView === item.id ? '#61dafb' : '#d0d0d0',
+                  color: isActive(item.path) ? '#61dafb' : '#d0d0d0',
                 }}
               />
             </ListItemButton>

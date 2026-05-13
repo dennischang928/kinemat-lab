@@ -1,14 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Box, Paper, Slider, Stack, Typography } from '@mui/material';
 import { Canvas, useThree } from '@react-three/fiber';
-import { OrbitControls } from '@react-three/drei';
+import { Html, OrbitControls, TransformControls, DragControls } from '@react-three/drei';
 import * as THREE from 'three';
 import URDFLoader from 'urdf-loader';
 import { XacroParser } from 'xacro-parser';
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
 import { ColladaLoader } from 'three/examples/jsm/loaders/ColladaLoader.js';
+import { calculateForwardKinematicsMatrixDegrees } from '../helper/kinematics/fk';
+import { calculateInverseKinematicsMatrixDegrees } from '../helper/kinematics/ik';
 
-const DEFAULT_CAMERA = [2.5, 2.5, 2.5];
+const DEFAULT_CAMERA = [6, 6, 6];
 const PINCHER_PACKAGE = 'pincher_arm_description';
 const PINCHER_ENTRY_XACRO = `urdf/pincher_arm.urdf.xacro`;
 
@@ -64,8 +66,92 @@ const resolveMeshUrl = (pathToModel, fileMap) => {
   return pathToModel;
 };
 
-function SceneContent({ robot, showGrid, showAxes, controlsRef }) {
+const solveIKForWorldPosition = ((worldPos, currentJoints) => {
+  const targetX = worldPos.x;
+  const targetY = -worldPos.z;
+  const targetZ = worldPos.y;
+
+  const targetMatrix = [
+    [1, 0, 0, targetX],
+    [0, 1, 0, targetY],
+    [0, 0, 1, targetZ],
+    [0, 0, 0, 1],
+  ];
+
+  const centerOffsetDeg = 148.335;
+  const seedQ1 = ((currentJoints.J1 || 0) - centerOffsetDeg) * (Math.PI / 180);
+  const seedQ2 = ((currentJoints.J2 || 0) - centerOffsetDeg) * (Math.PI / 180);
+  const seedQ3 = ((currentJoints.J3 || 0) - centerOffsetDeg) * (Math.PI / 180);
+  const seedQ4 = ((currentJoints.J4 || 0) - centerOffsetDeg) * (Math.PI / 180);
+  const seedQ5 = ((currentJoints.J5 || 0) - centerOffsetDeg) * (Math.PI / 180);
+
+  let solution = calculateInverseKinematicsMatrixDegrees(targetMatrix, {
+    mask: [true, true, true, false, false, false],
+    initialGuess: [seedQ1, seedQ2, seedQ3, seedQ4, seedQ5],
+  });
+
+  if (!solution || !solution.converged) {
+    console.log("IK DLS failed, falling back to analytic guess solver...");
+    solution = calculateInverseKinematicsMatrixDegrees(targetMatrix, {
+      mask: [true, true, true, false, false, false],
+    });
+  }
+
+  if (solution && solution.converged) {
+    return {
+      J1: solution.q1 + centerOffsetDeg,
+      J2: solution.q2 + centerOffsetDeg,
+      J3: solution.q3 + centerOffsetDeg,
+      J4: solution.q4 + centerOffsetDeg,
+      J5: solution.q5 + centerOffsetDeg,
+    };
+  }
+  return null;
+})
+
+function SceneContent({ robot, jointTargets, setJointTargets, showGrid, showAxes, controlsRef, showTransformControls, transformPosition, interpolationPlan = [], onWaypointClick }) {
   const { camera } = useThree();
+  const meshRef = useRef();
+  const pathGroupRef = useRef();
+  const pathPoints = useMemo(() => {
+    if (!Array.isArray(interpolationPlan) || interpolationPlan.length === 0) return [];
+    try {
+      const centerOffsetDeg = 148.335;
+      return interpolationPlan.map((step) => {
+        const joints = step?.joints || {};
+        const T = calculateForwardKinematicsMatrixDegrees({
+          q1: (joints.J1 || 0) - centerOffsetDeg,
+          q2: (joints.J2 || 0) - centerOffsetDeg,
+          q3: (joints.J3 || 0) - centerOffsetDeg,
+          q4: (joints.J4 || 0) - centerOffsetDeg,
+          q5: (joints.J5 || 0) - centerOffsetDeg,
+        });
+
+        const x = T[0][3] || 0;
+        const y = T[1][3] || 0;
+        const z = T[2][3] || 0;
+        // Convert FK coordinate space to scene space used elsewhere ([x, z, -y])
+        const pt = new THREE.Vector3(x, z, -y);
+        pt.joints = joints;
+        return pt;
+      });
+    } catch (e) {
+      return [];
+    }
+  }, [interpolationPlan]);
+
+  // useEffect(() => {
+  //   if (pathPoints && pathPoints.length > 0) {
+  //     // Debug: log number of points and first/last coordinates
+  //     try {
+  //       // eslint-disable-next-line no-console
+  //       console.log('[URDFSceneViewport] pathPoints:', pathPoints.length, pathPoints[0]?.toArray(), pathPoints[pathPoints.length - 1]?.toArray());
+  //     } catch (e) {
+  //       // ignore
+  //     }
+  //   }
+  // }, [pathPoints]);
+
 
   useEffect(() => {
     if (!robot) return;
@@ -97,9 +183,89 @@ function SceneContent({ robot, showGrid, showAxes, controlsRef }) {
       <pointLight position={[-8, 4, -6]} intensity={0.25} />
 
       {showGrid && <gridHelper args={[10, 20, '#90a4ae', '#cfd8dc']} position={[0, 0, 0]} />}
-      {showAxes && <axesHelper args={[0.8]} />}
+      {showAxes && (
+        <>
+          <axesHelper args={[0.8]} />
+          <Html position={[0.3, 0, 0]} center>
+            <div style={{ color: '#f44336', fontSize: 12, fontWeight: 700, pointerEvents: 'none' }}>X</div>
+          </Html>
+          <Html position={[0, 0.3, 0]} center>
+            <div style={{ color: '#43a047', fontSize: 12, fontWeight: 700, pointerEvents: 'none' }}>Z</div>
+          </Html>
+          <Html position={[0, 0, -0.3]} center>
+            <div style={{ color: '#1e88e5', fontSize: 12, fontWeight: 700, pointerEvents: 'none' }}>Y</div>
+          </Html>
+        </>
+      )}
 
       {robot && <primitive object={robot} />}
+
+      {/* Interpolation path visualization */}
+      {pathPoints.length > 0 && (
+        <group ref={pathGroupRef}>
+
+          {/* Small spheres at each waypoint */}
+          {pathPoints.map((p, idx) => (
+            <mesh
+              key={`pathpt-${idx}`}
+              position={[p.x, p.y, p.z]}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (p.joints && setJointTargets) {
+                  setJointTargets(p.joints);
+                }
+                if (onWaypointClick) {
+                  onWaypointClick(idx);
+                }
+              }}
+              onPointerOver={(e) => {
+                e.stopPropagation();
+                document.body.style.cursor = 'pointer';
+              }}
+              onPointerOut={(e) => {
+                e.stopPropagation();
+                document.body.style.cursor = 'default';
+              }}
+            >
+              <sphereGeometry args={[0.0015, 10, 10]} />
+              <meshStandardMaterial color={idx === 0 || idx === pathPoints.length - 1 ? '#4caf50' : '#ff4081'} />
+            </mesh>
+          ))}
+        </group>
+      )}
+
+      {showTransformControls && (
+        <TransformControls
+          mode="translate"
+          position={transformPosition}
+          size={0.6}
+          // onObjectChange={
+
+          // }
+          onMouseUp={(e) => {
+            if (controlsRef.current) {
+              controlsRef.current.enabled = !e.value;
+            }
+            if (!e.value && setJointTargets) {
+              const mesh = meshRef.current;
+              const worldPos = new THREE.Vector3();
+              if (mesh) {
+                mesh.getWorldPosition(worldPos);
+              }
+
+              const newJoints = solveIKForWorldPosition(worldPos, jointTargets);
+              if (newJoints) {
+                setJointTargets(newJoints);
+              }
+            }
+          }}
+        >
+          <mesh ref={meshRef}>
+            <sphereGeometry args={[0.009, 16, 16]} />
+            <meshBasicMaterial color="#ff00ff" transparent opacity={0.5} />
+          </mesh>
+        </TransformControls>
+      )}
 
       <OrbitControls
         ref={controlsRef}
@@ -113,7 +279,7 @@ function SceneContent({ robot, showGrid, showAxes, controlsRef }) {
   );
 }
 
-function URDFSceneViewport({ jointTargets }) {
+function URDFSceneViewport({ jointTargets, setJointTargets, showTransformControls = false, interpolationPlan = [], onWaypointClick }) {
   const controlsRef = useRef(null);
   const bundledPackageMapRef = useRef(buildBundledPackageMap());
 
@@ -121,6 +287,25 @@ function URDFSceneViewport({ jointTargets }) {
   const [showGrid] = useState(true);
   const [showAxes] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
+
+  const transformPosition = useMemo(() => {
+    if (!jointTargets) return [0, 0, 0];
+
+    const centerOffsetDeg = 148.335;
+    const T = calculateForwardKinematicsMatrixDegrees({
+      q1: (jointTargets.J1 || 0) - centerOffsetDeg,
+      q2: (jointTargets.J2 || 0) - centerOffsetDeg,
+      q3: (jointTargets.J3 || 0) - centerOffsetDeg,
+      q4: (jointTargets.J4 || 0) - centerOffsetDeg,
+      q5: (jointTargets.J5 || 0) - centerOffsetDeg,
+    });
+
+    const x = T[0][3];
+    const y = T[1][3];
+    const z = T[2][3];
+
+    return [x, z, -y];
+  }, [jointTargets]);
 
   const hasRobot = useMemo(() => Boolean(robot), [robot]);
 
@@ -192,13 +377,13 @@ function URDFSceneViewport({ jointTargets }) {
 
   useEffect(() => {
     if (!robot || !jointTargets) return;
-    
+
     // Retrieve non-fixed joints from the loaded robot
     const activeJoints = Object.values(robot.joints || {}).filter((joint) => joint?.jointType !== 'fixed');
-    
+
     // Map J1..J5 in sequence to the active joints.
     const targetKeys = ['J1', 'J2', 'J3', 'J4', 'J5'];
-    
+
     // ANGLE_MAX from ControlPanel is ~296.67. Center is roughly 148.335 degrees.
     // Convert target degree to radians where 148.335 deg = 0 rad.
     activeJoints.forEach((joint, index) => {
@@ -284,8 +469,23 @@ function URDFSceneViewport({ jointTargets }) {
 
   return (
     <Box sx={{ width: '100%', height: '100%', position: 'relative' }}>
-      <Canvas shadows camera={{ position: DEFAULT_CAMERA, fov: 50 }}>
-        <SceneContent robot={robot} showGrid={showGrid} showAxes={showAxes} controlsRef={controlsRef} />
+      <Canvas
+        shadows
+        camera={{ position: DEFAULT_CAMERA, fov: 72 }}
+        gl={{ shadowMap: { type: THREE.PCFShadowMap } }}
+      >
+        <SceneContent
+          jointTargets={jointTargets}
+          setJointTargets={setJointTargets}
+          robot={robot}
+          showGrid={showGrid}
+          showAxes={showAxes}
+          controlsRef={controlsRef}
+          showTransformControls={showTransformControls}
+          transformPosition={transformPosition}
+          interpolationPlan={interpolationPlan}
+          onWaypointClick={onWaypointClick}
+        />
       </Canvas>
 
       <Stack spacing={1.2} sx={{ position: 'absolute', top: 12, left: 12, pointerEvents: 'none' }}>

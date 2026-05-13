@@ -1,17 +1,15 @@
 import { useState, useEffect, useRef } from 'react';
-import { Box, Button, ButtonGroup, TextField, Typography, Alert, Paper, Stack, Chip, Menu, MenuItem, Slider, IconButton, Tooltip, LinearProgress, Fade } from '@mui/material';
-import PowerIcon from '@mui/icons-material/Power';
-import HomeIcon from '@mui/icons-material/Home';
-import PowerOffIcon from '@mui/icons-material/PowerOff';
-import LinkIcon from '@mui/icons-material/Link';
-import LinkOffIcon from '@mui/icons-material/LinkOff';
-import TuneIcon from '@mui/icons-material/Tune';
+import { Box, Button, TextField, Typography, Alert, Paper, Stack, Slider, Fade } from '@mui/material';
+
+
+
 import DirectionsWalkIcon from '@mui/icons-material/DirectionsWalk';
 import DirectionsRunIcon from '@mui/icons-material/DirectionsRun';
 import DirectionsBikeIcon from '@mui/icons-material/DirectionsBike';
 import AirplanemodeActiveIcon from '@mui/icons-material/AirplanemodeActive';
 import RocketLaunchIcon from '@mui/icons-material/RocketLaunch';
-import { useSerialConnection } from '../../hooks/useSerialConnection';
+import SyncIcon from '@mui/icons-material/Sync';
+import SendIcon from '@mui/icons-material/Send';
 
 const JOINT_KEYS = ['J1', 'J2', 'J3', 'J4', 'J5'];
 const STEP_MIN = 0;
@@ -24,41 +22,30 @@ const stepsToAngle = (steps) => parseFloat((steps * DEG_PER_STEP).toFixed(2));
 const FEEDRATE_MIN = 10;
 const FEEDRATE_MAX = 1000;
 
-function ControlPanel({ jointTargets, setJointTargets }) {
+function ControlPanel({ jointTargets, setJointTargets, connection, autoSyncTrigger = 0 }) {
   const {
     isConnected,
     error,
     isSerialAvailable,
-    requestPort,
-    connect,
-    disconnect,
-    sendData,
-    setSelectedPort,
     setError,
     startReading,
-  } = useSerialConnection();
+  } = connection;
 
-  const [baudRate, setBaudRate] = useState(115200);
-  const [feedrate, setFeedrate] = useState(100);
+  const [feedrate, setFeedrate] = useState(300);
   const [hasSynced, setHasSynced] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [isConnecting, setIsConnecting] = useState(false);
-  const [isDisconnecting, setIsDisconnecting] = useState(false);
   const [isAwaitingOk, setIsAwaitingOk] = useState(false);
   const [isTorqueEnabled, setIsTorqueEnabled] = useState(true);
   const [showErrorAlert, setShowErrorAlert] = useState(false);
-  const [baudMenuAnchorEl, setBaudMenuAnchorEl] = useState(null);
   const readBufferRef = useRef('');
-  const responseResolverRef = useRef(null);
-  const responseTimeoutRef = useRef(null);
   const errorDismissTimerRef = useRef(null);
   const errorClearTimerRef = useRef(null);
-  const speedPresets = [
-    { value: 50, label: '50', icon: DirectionsWalkIcon },
-    { value: 100, label: '100', icon: DirectionsRunIcon },
-    { value: 200, label: '200', icon: DirectionsBikeIcon },
-    { value: 600, label: '600', icon: AirplanemodeActiveIcon },
-    { value: 800, label: '800', icon: RocketLaunchIcon },
+  const speedMarks = [
+    { value: 100, label: <DirectionsWalkIcon fontSize="small" /> },
+    { value: 300, label: <DirectionsRunIcon fontSize="small" /> },
+    { value: 500, label: <DirectionsBikeIcon fontSize="small" /> },
+    { value: 700, label: <AirplanemodeActiveIcon fontSize="small" /> },
+    { value: 900, label: <RocketLaunchIcon fontSize="small" /> },
   ];
 
   const sliderSx = { width: '90%', ml: 1 };
@@ -72,29 +59,15 @@ function ControlPanel({ jointTargets, setJointTargets }) {
       return;
     }
 
-    let isActive = true;
-    startReading((text) => {
-      if (!isActive) return;
+    const unsubscribe = connection.subscribe((text) => {
       readBufferRef.current += text;
       const lines = readBufferRef.current.split(/\r?\n/);
       readBufferRef.current = lines.pop() || '';
 
       lines.forEach((line) => {
-        const okFound = /\bOK\b/.test(line);
         const errFound = /^ERR\b/.test(line);
 
-        if (okFound && responseResolverRef.current) {
-          responseResolverRef.current(true);
-          responseResolverRef.current = null;
-          clearTimeout(responseTimeoutRef.current);
-          responseTimeoutRef.current = null;
-        }
-
-        if (errFound && responseResolverRef.current) {
-          responseResolverRef.current(false);
-          responseResolverRef.current = null;
-          clearTimeout(responseTimeoutRef.current);
-          responseTimeoutRef.current = null;
+        if (errFound) {
           setError(line);
         }
 
@@ -113,10 +86,10 @@ function ControlPanel({ jointTargets, setJointTargets }) {
       });
     });
 
-    return () => {
-      isActive = false;
-    };
-  }, [isConnected, startReading]);
+    // ensure the reading loop is started
+    connection.startReading();
+    return () => unsubscribe();
+  }, [isConnected, connection, setJointTargets, setError]);
 
   useEffect(() => {
     const handleKeyDown = (event) => {
@@ -191,38 +164,12 @@ function ControlPanel({ jointTargets, setJointTargets }) {
       return false;
     }
 
-    if (responseResolverRef.current) {
-      responseResolverRef.current(false);
-      responseResolverRef.current = null;
-      clearTimeout(responseTimeoutRef.current);
-      responseTimeoutRef.current = null;
-      setIsAwaitingOk(false);
-    }
-
-    const writeOk = await sendData(command);
+    const writeOk = await connection.sendCommandWithTimeout(command, { waitForOk });
     if (!writeOk) {
-      setError('Failed to write command to serial port.');
+      setError('No OK received from command.');
       return false;
     }
-
-    if (!waitForOk) {
-      return true;
-    }
-
-    setIsAwaitingOk(true);
-    return new Promise((resolve) => {
-      responseResolverRef.current = (result) => {
-        setIsAwaitingOk(false);
-        resolve(result);
-      };
-      responseTimeoutRef.current = window.setTimeout(() => {
-        responseResolverRef.current = null;
-        responseTimeoutRef.current = null;
-        setIsAwaitingOk(false);
-        setError('No OK received within 5 seconds.');
-        resolve(false);
-      }, 5000);
-    });
+    return true;
   };
 
   const handleSyncFromArm = async () => {
@@ -242,6 +189,15 @@ function ControlPanel({ jointTargets, setJointTargets }) {
       setIsSyncing(false);
     }
   };
+
+  // Auto-sync when the parent signals a trigger (increments)
+  useEffect(() => {
+    if (!autoSyncTrigger) return;
+    if (!connection?.isConnected) return;
+    // fire-and-forget; handleSyncFromArm manages its own state
+    handleSyncFromArm();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoSyncTrigger]);
 
   const handleSendSliders = async () => {
     if (!isConnected) {
@@ -264,45 +220,6 @@ function ControlPanel({ jointTargets, setJointTargets }) {
     if (!ok) {
       setError('No OK received from command.');
     }
-  };
-
-  const handleConnect = async () => {
-    setIsConnecting(true);
-    try {
-      const port = await requestPort();
-      if (port) {
-        const success = await connect(port, baudRate);
-        if (success) {
-          setSelectedPort(port);
-        }
-      }
-    } catch (err) {
-      setError(`Connection failed: ${err.message}`);
-    } finally {
-      setIsConnecting(false);
-    }
-  };
-
-  const handleDisconnect = async () => {
-    setIsDisconnecting(true);
-    try {
-      await disconnect();
-    } finally {
-      setIsDisconnecting(false);
-    }
-  };
-
-  const handleOpenBaudMenu = (event) => {
-    setBaudMenuAnchorEl(event.currentTarget);
-  };
-
-  const handleCloseBaudMenu = () => {
-    setBaudMenuAnchorEl(null);
-  };
-
-  const handleSelectBaudRate = (rate) => {
-    setBaudRate(rate);
-    handleCloseBaudMenu();
   };
 
   const handleQuickCommand = async (command) => {
@@ -336,210 +253,95 @@ function ControlPanel({ jointTargets, setJointTargets }) {
     }
   };
 
-  const isConnectionProgressLoading = isConnecting || isDisconnecting || isAwaitingOk;
-
   return (
-    <Box sx={{ p: 3, height: '100%', overflow: 'auto' }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      {/* Scrollable content area */}
+      <Box sx={{ flex: 1, overflow: 'auto', p: 3 }}>
+        {/* Serial API Support Check */}
+        {!isSerialAvailable() && (
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            Web Serial API is not supported in this browser. Please use Chrome, Edge, or Opera.
+          </Alert>
+        )}
 
-      {/* Serial API Support Check */}
-      {!isSerialAvailable() && (
-        <Alert severity="warning" sx={{ mb: 2 }}>
-          Web Serial API is not supported in this browser. Please use Chrome, Edge, or Opera.
-        </Alert>
-      )}
-
-      {/* Connection Bar */}
-      <Paper
-        sx={{
-          p: 1,
-          mb: 3,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 1,
-          bgcolor: isConnected ? '#e8f5e9' : '#ffebee',
-          border: `1px solid ${isConnected ? '#4caf50' : '#f44336'}`,
-          borderRadius: 2,
-        }}
-      >
-        <LinearProgress
-          variant={isConnectionProgressLoading ? 'indeterminate' : 'determinate'}
-          value={isConnectionProgressLoading ? undefined : 100}
-          sx={{
-            flex: 1,
-            height: 10,
-            borderRadius: 999,
-            backgroundColor: isConnectionProgressLoading
-              ? '#e0e0e0'
-              : isConnected
-                ? '#c8e6c9'
-                : '#ffcdd2',
-            '& .MuiLinearProgress-bar': {
-              borderRadius: 999,
-              backgroundColor: isConnectionProgressLoading
-                ? '#1976d2'
-                : isConnected
-                  ? '#4caf50'
-                  : '#f44336',
-            },
-          }}
-        />
-        <IconButton
-          onClick={handleConnect}
-          disabled={isConnected || isConnecting || isDisconnecting}
-          sx={{ color: '#4caf50' }}
-          size="large"
-          aria-label="connect"
-        >
-          <LinkIcon />
-        </IconButton>
-        <IconButton
-          onClick={handleDisconnect}
-          disabled={!isConnected || isConnecting || isDisconnecting}
-          sx={{ color: '#f44336' }}
-          size="large"
-          aria-label="disconnect"
-        >
-          <LinkOffIcon />
-        </IconButton>
-        <IconButton
-          onClick={handleOpenBaudMenu}
-          disabled={isConnecting || isDisconnecting}
-          size="large"
-          aria-label="baud-rate-settings"
-        >
-          <TuneIcon />
-        </IconButton>
-      </Paper>
-      <Menu
-        anchorEl={baudMenuAnchorEl}
-        open={Boolean(baudMenuAnchorEl)}
-        onClose={handleCloseBaudMenu}
-      >
-        {[9600, 14400, 19200, 38400, 57600, 115200, 230400, 460800, 921600].map((rate) => (
-          <MenuItem
-            key={rate}
-            selected={baudRate === rate}
-            onClick={() => handleSelectBaudRate(rate)}
-          >
-            {rate}
-          </MenuItem>
-        ))}
-      </Menu>
-
-      <Paper sx={{ p: 2, mb: 3 }}>
-        <Stack spacing={2}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Tooltip title="Homing sequence" arrow>
-              <IconButton
-                onClick={() => handleQuickCommand('M140')}
-                size="large"
-                color="primary"
-                aria-label="home"
-                disabled={!isConnected || !isTorqueEnabled}
-              >
-                <HomeIcon />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="Torque on" arrow>
-              <IconButton
-                onClick={() => handleQuickCommand('M17')}
-                size="large"
-                color="primary"
-                aria-label="power-on"
-                disabled={!isConnected}
-              >
-                <PowerIcon />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="Torque off" arrow>
-              <IconButton
-                onClick={() => handleQuickCommand('M18')}
-                size="large"
-                aria-label="power-off"
-                disabled={!isConnected || !isTorqueEnabled}
-                sx={{ color: '#f44336' }}
-              >
-                <PowerOffIcon />
-              </IconButton>
-            </Tooltip>
-          </Box>
-
+        <Paper sx={{ p: 2, mb: 3 }}>
+          <Stack spacing={2}>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              {JOINT_KEYS.map((joint, index) => (
-                <Box
-                  key={joint}
-                  sx={{ pt: index === 0 ? 0 : 1, borderTop: index === 0 ? 'none' : '1px solid #eee' }}
-                >
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Typography variant="body2" fontFamily="monospace">{joint}:</Typography>
-                    <Slider
-                      min={ANGLE_MIN}
-                      max={ANGLE_MAX}
-                      step={DEG_PER_STEP}
-                      value={jointTargets[joint]}
-                      onChange={(e, val) => handleJointChange(joint, val)}
-                      size="small"
-                      sx={{ ...sliderSx, flex: 1, ml: 0 }}
-                    />
-                    <TextField
-                      type="number"
-                      size="small"
-                      inputProps={{ min: ANGLE_MIN, max: ANGLE_MAX, step: DEG_PER_STEP }}
-                      value={jointTargets[joint]}
-                      onChange={(e) => handleJointChange(joint, e.target.value)}
-                      sx={inputSx}
-                    />
+                {JOINT_KEYS.map((joint, index) => (
+                  <Box
+                    key={joint}
+                    sx={{ pt: index === 0 ? 0 : 1, borderTop: index === 0 ? 'none' : '1px solid #eee' }}
+                  >
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Typography variant="body2" fontFamily="monospace">{joint}:</Typography>
+                      <Slider
+                        min={ANGLE_MIN}
+                        max={ANGLE_MAX}
+                        step={DEG_PER_STEP}
+                        value={jointTargets[joint]}
+                        onChange={(e, val) => handleJointChange(joint, val)}
+                        size="small"
+                        sx={{ ...sliderSx, flex: 1, ml: 0 }}
+                      />
+                      <TextField
+                        type="number"
+                        size="small"
+                        inputProps={{ min: ANGLE_MIN, max: ANGLE_MAX, step: DEG_PER_STEP }}
+                        value={jointTargets[joint]}
+                        onChange={(e) => handleJointChange(joint, e.target.value)}
+                        sx={inputSx}
+                      />
+                    </Box>
                   </Box>
-                </Box>
-              ))}
-            </Box>
+                ))}
+              </Box>
+          </Stack>
+        </Paper>
+      </Box>
 
-            <Box>
-              <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                Speed (F): {feedrate}
-              </Typography>
-              <ButtonGroup fullWidth>
-                {speedPresets.map((preset) => {
-                  const Icon = preset.icon;
-                  return (
-                    <Button
-                      key={preset.value}
-                      variant={feedrate === preset.value ? 'contained' : 'outlined'}
-                      onClick={() => handleFeedrateChange(preset.value)}
-                      disabled={!isTorqueEnabled}
-                      startIcon={<Icon fontSize="small" />}
-                    >
-                      {preset.label}
-                    </Button>
-                  );
-                })}
-              </ButtonGroup>
-            </Box>
+      {/* Bottom quick actions panel */}
+      <Box sx={{ p: 3, pt: 2 }}>
+        <Paper sx={{ p: 2, boxShadow: 3 }}>
+          <Typography variant="subtitle2" sx={{ mb: 2 }}>
+            Speed (F): {feedrate}
+          </Typography>
+          <Slider
+            value={feedrate}
+            onChange={(e, val) => handleFeedrateChange(val)}
+            min={0}
+            max={1000}
+            step={null}
+            marks={speedMarks}
+            disabled={!isTorqueEnabled}
+            valueLabelDisplay="auto"
+            sx={{ mb: 4}}
+          />
 
-            <Stack direction="row" spacing={1}>
-              <Button
-                variant="outlined"
-                onClick={handleSyncFromArm}
-                disabled={!isConnected || isSyncing || !isTorqueEnabled}
-                fullWidth
-              >
-                {isSyncing ? 'Syncing...' : 'Sync from Arm'}
-              </Button>
-              <Button
-                variant="contained"
-                onClick={handleSendSliders}
-                disabled={!isConnected || !hasSynced || !isTorqueEnabled}
-                fullWidth
-              >
-                Send to Arm
-              </Button>
-            </Stack>
+          <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+            <Button
+              variant="outlined"
+              onClick={handleSyncFromArm}
+              disabled={!isConnected || isSyncing || !isTorqueEnabled}
+              size="large"
+              startIcon={<SyncIcon />}
+            >
+              {isSyncing ? 'Syncing...' : 'Sync'}
+            </Button>
+            <Button
+              variant="contained"
+              onClick={handleSendSliders}
+              disabled={!isConnected || !hasSynced || !isTorqueEnabled}
+              fullWidth
+              size="large"
+              endIcon={<SendIcon />}
+            >
+              Send to Arm
+            </Button>
           </Stack>
         </Paper>
 
-      <Box sx={{ position: 'sticky', bottom: 0, mt: 2, zIndex: 2 }}>
         <Fade in={showErrorAlert} timeout={350}>
-          <Box>
+          <Box sx={{ mt: 2 }}>
             {error && (
               <Alert variant="filled" severity="error" sx={{ boxShadow: 3 }}>
                 {error}

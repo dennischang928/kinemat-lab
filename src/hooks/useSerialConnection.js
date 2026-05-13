@@ -9,6 +9,10 @@ export const useSerialConnection = () => {
   const readerRef = useRef(null);
   const writerRef = useRef(null);
   const keepReadingRef = useRef(false);
+  const lineListenersRef = useRef(new Set());
+  const pendingResponseRef = useRef(null);
+  const pendingTimeoutRef = useRef(null);
+  const [isTorqueEnabled, setIsTorqueEnabled] = useState(true);
 
   // Check if Web Serial API is available
   const isSerialAvailable = useCallback(() => {
@@ -150,8 +154,42 @@ export const useSerialConnection = () => {
     }
   }, [selectedPort, isConnected]);
 
-  // Receive data
-  const startReading = useCallback(async (onData) => {
+  // Send command and wait for OK/ERR within timeout
+  const sendCommandWithTimeout = useCallback(async (command, { waitForOk = true, timeout = 5000 } = {}) => {
+    if (!selectedPort || !isConnected) {
+      setError('Not connected to serial port');
+      return false;
+    }
+
+    // Cancel any existing pending
+    if (pendingResponseRef.current) {
+      pendingResponseRef.current.resolve(false);
+      pendingResponseRef.current = null;
+      if (pendingTimeoutRef.current) {
+        clearTimeout(pendingTimeoutRef.current);
+        pendingTimeoutRef.current = null;
+      }
+    }
+
+    const okWrite = await sendData(command);
+    if (!okWrite) return false;
+
+    if (!waitForOk) return true;
+
+    return new Promise((resolve) => {
+      pendingResponseRef.current = { resolve };
+      pendingTimeoutRef.current = setTimeout(() => {
+        if (pendingResponseRef.current) {
+          pendingResponseRef.current.resolve(false);
+          pendingResponseRef.current = null;
+        }
+        pendingTimeoutRef.current = null;
+      }, timeout);
+    });
+  }, [selectedPort, isConnected, sendData]);
+
+  // Receive data and broadcast to subscribers
+  const startReading = useCallback(async () => {
     try {
       if (!selectedPort || !isConnected) {
         setError('Not connected to serial port');
@@ -172,7 +210,27 @@ export const useSerialConnection = () => {
           const { value, done } = await reader.read();
           if (done) break;
           const text = decoder.decode(value);
-          onData(text);
+
+          // notify all listeners
+          lineListenersRef.current.forEach((cb) => {
+            try { cb(text); } catch (e) { /* ignore listener errors */ }
+          });
+
+          // simple OK/ERR handling for pending command
+          const lines = text.split(/\r?\n/);
+          lines.forEach((line) => {
+            if (!line) return;
+            const okFound = /\bOK\b/.test(line);
+            const errFound = /^ERR\b/.test(line);
+            if ((okFound || errFound) && pendingResponseRef.current) {
+              pendingResponseRef.current.resolve(okFound && !errFound);
+              pendingResponseRef.current = null;
+              if (pendingTimeoutRef.current) {
+                clearTimeout(pendingTimeoutRef.current);
+                pendingTimeoutRef.current = null;
+              }
+            }
+          });
         }
       } finally {
         keepReadingRef.current = false;
@@ -186,6 +244,11 @@ export const useSerialConnection = () => {
     }
   }, [selectedPort, isConnected]);
 
+  const subscribe = useCallback((cb) => {
+    lineListenersRef.current.add(cb);
+    return () => lineListenersRef.current.delete(cb);
+  }, []);
+
   // Check connection status on mount
   useEffect(() => {
     getPorts();
@@ -197,6 +260,7 @@ export const useSerialConnection = () => {
     selectedPort,
     error,
     status,
+    isTorqueEnabled,
     isSerialAvailable,
     getPorts,
     requestPort,
@@ -204,6 +268,8 @@ export const useSerialConnection = () => {
     disconnect,
     sendData,
     startReading,
+    subscribe,
+    sendCommandWithTimeout,
     setSelectedPort,
     setError,
   };
