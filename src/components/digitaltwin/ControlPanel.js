@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Box, Button, TextField, Typography, Alert, Paper, Stack, Slider, Fade } from '@mui/material';
+import { Box, TextField, Typography, Alert, Paper, Stack, Slider } from '@mui/material';
 
 
 
@@ -8,8 +8,6 @@ import DirectionsRunIcon from '@mui/icons-material/DirectionsRun';
 import DirectionsBikeIcon from '@mui/icons-material/DirectionsBike';
 import AirplanemodeActiveIcon from '@mui/icons-material/AirplanemodeActive';
 import RocketLaunchIcon from '@mui/icons-material/RocketLaunch';
-import SyncIcon from '@mui/icons-material/Sync';
-import SendIcon from '@mui/icons-material/Send';
 
 const JOINT_KEYS = ['J1', 'J2', 'J3', 'J4', 'J5'];
 const STEP_MIN = 0;
@@ -22,21 +20,27 @@ const stepsToAngle = (steps) => parseFloat((steps * DEG_PER_STEP).toFixed(2));
 const FEEDRATE_MIN = 10;
 const FEEDRATE_MAX = 1000;
 
-function ControlPanel({ jointTargets, setJointTargets, connection, autoSyncTrigger = 0 }) {
+function ControlPanel({ 
+  jointTargets, 
+  setJointTargets, 
+  connection, 
+  autoSyncTrigger = 0,
+  feedrate = 300,
+  setFeedrate = () => {},
+  hasSynced = false,
+  setHasSynced = () => {},
+  isSyncing = false,
+  setIsSyncing = () => {},
+  isTorqueEnabled = true,
+  setIsTorqueEnabled = () => {},
+}) {
   const {
     isConnected,
     error,
     isSerialAvailable,
     setError,
-    startReading,
   } = connection;
 
-  const [feedrate, setFeedrate] = useState(300);
-  const [hasSynced, setHasSynced] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [isAwaitingOk, setIsAwaitingOk] = useState(false);
-  const [isTorqueEnabled, setIsTorqueEnabled] = useState(true);
-  const [showErrorAlert, setShowErrorAlert] = useState(false);
   const readBufferRef = useRef('');
   const errorDismissTimerRef = useRef(null);
   const errorClearTimerRef = useRef(null);
@@ -95,13 +99,6 @@ function ControlPanel({ jointTargets, setJointTargets, connection, autoSyncTrigg
     const handleKeyDown = (event) => {
       if (!isConnected) return;
       if (event.code !== 'Space') return;
-
-    //   const target = event.target;
-    //   const tagName = target?.tagName?.toLowerCase();
-    //   if (tagName === 'input' || tagName === 'textarea' || tagName === 'select' || tagName === 'button') {
-    //     return;
-    //   }
-    console.log('Space key pressed');
       event.preventDefault();
       handleQuickCommand('M18');
     };
@@ -109,38 +106,6 @@ function ControlPanel({ jointTargets, setJointTargets, connection, autoSyncTrigg
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isConnected]);
-
-  useEffect(() => {
-    if (!error) {
-      setShowErrorAlert(false);
-      return;
-    }
-
-    setShowErrorAlert(true);
-
-    if (errorDismissTimerRef.current) {
-      clearTimeout(errorDismissTimerRef.current);
-    }
-    if (errorClearTimerRef.current) {
-      clearTimeout(errorClearTimerRef.current);
-    }
-
-    errorDismissTimerRef.current = setTimeout(() => {
-      setShowErrorAlert(false);
-      errorClearTimerRef.current = setTimeout(() => {
-        setError(null);
-      }, 350);
-    }, 3000);
-
-    return () => {
-      if (errorDismissTimerRef.current) {
-        clearTimeout(errorDismissTimerRef.current);
-      }
-      if (errorClearTimerRef.current) {
-        clearTimeout(errorClearTimerRef.current);
-      }
-    };
-  }, [error, setError]);
 
   const clampAngle = (value) => Math.max(ANGLE_MIN, Math.min(ANGLE_MAX, value));
   const clampFeedrateValue = (value) => Math.max(FEEDRATE_MIN, Math.min(FEEDRATE_MAX, value));
@@ -297,58 +262,6 @@ function ControlPanel({ jointTargets, setJointTargets, connection, autoSyncTrigg
               </Box>
           </Stack>
         </Paper>
-      </Box>
-
-      {/* Bottom quick actions panel */}
-      <Box sx={{ p: 3, pt: 2 }}>
-        <Paper sx={{ p: 2, boxShadow: 3 }}>
-          <Typography variant="subtitle2" sx={{ mb: 2 }}>
-            Speed (F): {feedrate}
-          </Typography>
-          <Slider
-            value={feedrate}
-            onChange={(e, val) => handleFeedrateChange(val)}
-            min={0}
-            max={1000}
-            step={null}
-            marks={speedMarks}
-            disabled={!isTorqueEnabled}
-            valueLabelDisplay="auto"
-            sx={{ mb: 4}}
-          />
-
-          <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-            <Button
-              variant="outlined"
-              onClick={handleSyncFromArm}
-              disabled={!isConnected || isSyncing || !isTorqueEnabled}
-              size="large"
-              startIcon={<SyncIcon />}
-            >
-              {isSyncing ? 'Syncing...' : 'Sync'}
-            </Button>
-            <Button
-              variant="contained"
-              onClick={handleSendSliders}
-              disabled={!isConnected || !hasSynced || !isTorqueEnabled}
-              fullWidth
-              size="large"
-              endIcon={<SendIcon />}
-            >
-              Send to Arm
-            </Button>
-          </Stack>
-        </Paper>
-
-        <Fade in={showErrorAlert} timeout={350}>
-          <Box sx={{ mt: 2 }}>
-            {error && (
-              <Alert variant="filled" severity="error" sx={{ boxShadow: 3 }}>
-                {error}
-              </Alert>
-            )}
-          </Box>
-        </Fade>
       </Box>
     </Box>
   );

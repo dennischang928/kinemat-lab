@@ -6,10 +6,17 @@ import TuneIcon from '@mui/icons-material/Tune';
 import HomeIcon from '@mui/icons-material/Home';
 import PowerIcon from '@mui/icons-material/Power';
 import PowerOffIcon from '@mui/icons-material/PowerOff';
+import DirectionsWalkIcon from '@mui/icons-material/DirectionsWalk';
+import DirectionsRunIcon from '@mui/icons-material/DirectionsRun';
+import DirectionsBikeIcon from '@mui/icons-material/DirectionsBike';
+import AirplanemodeActiveIcon from '@mui/icons-material/AirplanemodeActive';
+import RocketLaunchIcon from '@mui/icons-material/RocketLaunch';
 import ControlPanel from '../digitaltwin/ControlPanel';
 import PoseControl from '../digitaltwin/PoseControl';
+import Programming from '../digitaltwin/Programming';
 import Settings from '../digitaltwin/Settings';
 import URDFSceneViewport from '../digitaltwin/URDFSceneViewport';
+import CommandPanel from '../digitaltwin/CommandPanel';
 import { useSerialConnection } from '../../hooks/useSerialConnection';
 
 const STEP_MAX = 1023;
@@ -21,14 +28,32 @@ function DigitalTwinView({ activeSection = 'control', onSectionChange = () => { 
   const [leftPanelWidth, setLeftPanelWidth] = useState(30); // percentage
   const [jointTargets, setJointTargets] = useState(DEFAULT_JOINTS);
   const [interpolationPlan, setInterpolationPlan] = useState([]);
+  const [feedrate, setFeedrate] = useState(300);
+  const [hasSynced, setHasSynced] = useState(false);
+  const [isTorqueEnabled, setIsTorqueEnabled] = useState(true);
+  const [areActionButtonsLocked, setAreActionButtonsLocked] = useState(false);
+  const [showErrorAlert, setShowErrorAlert] = useState(false);
   const isDraggingRef = useRef(false);
   const poseControlRef = useRef(null);
+  const programmingRef = useRef(null);
   const connection = useSerialConnection();
   const [baudRate, setBaudRate] = useState(115200);
   const [isConnecting, setIsConnecting] = useState(false);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
   const [baudMenuAnchorEl, setBaudMenuAnchorEl] = useState(null);
   const [autoSyncTrigger, setAutoSyncTrigger] = useState(0);
+  const [torqueAutoSyncTrigger, setTorqueAutoSyncTrigger] = useState(0);
+  const errorDismissTimerRef = useRef(null);
+  const errorClearTimerRef = useRef(null);
+  const torqueUnlockTimerRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (torqueUnlockTimerRef.current) {
+        clearTimeout(torqueUnlockTimerRef.current);
+      }
+    };
+  }, []);
 
   const handleConnect = async () => {
     setIsConnecting(true);
@@ -71,6 +96,60 @@ function DigitalTwinView({ activeSection = 'control', onSectionChange = () => { 
 
   const isConnectionProgressLoading = isConnecting || isDisconnecting;
 
+  const lockActionButtons = () => {
+    if (torqueUnlockTimerRef.current) {
+      clearTimeout(torqueUnlockTimerRef.current);
+      torqueUnlockTimerRef.current = null;
+    }
+
+    setAreActionButtonsLocked(true);
+  };
+
+  const unlockActionButtonsAfterTorqueOn = () => {
+    if (torqueUnlockTimerRef.current) {
+      clearTimeout(torqueUnlockTimerRef.current);
+    }
+
+    setAreActionButtonsLocked(true);
+    torqueUnlockTimerRef.current = setTimeout(() => {
+      setAreActionButtonsLocked(false);
+      setTorqueAutoSyncTrigger((current) => current + 1);
+      torqueUnlockTimerRef.current = null;
+    }, 500);
+  };
+
+  const handleTorqueOn = async () => {
+    if (!connection.isConnected) {
+      connection.setError('Connect to a serial port before sending commands.');
+      return;
+    }
+
+    const ok = await connection.sendCommandWithTimeout('M17\n');
+    if (!ok) {
+      return;
+    }
+
+    setIsTorqueEnabled(true);
+    setHasSynced(false);
+    unlockActionButtonsAfterTorqueOn();
+  };
+
+  const handleTorqueOff = async () => {
+    if (!connection.isConnected) {
+      connection.setError('Connect to a serial port before sending commands.');
+      return;
+    }
+
+    const ok = await connection.sendCommandWithTimeout('M18\n');
+    if (!ok) {
+      return;
+    }
+
+    setIsTorqueEnabled(false);
+    setHasSynced(false);
+    lockActionButtons();
+  };
+
   useEffect(() => {
     if (!connection) return;
     let t = null;
@@ -81,6 +160,38 @@ function DigitalTwinView({ activeSection = 'control', onSectionChange = () => { 
       if (t) clearTimeout(t);
     };
   }, [connection && connection.isConnected]);
+
+  useEffect(() => {
+    if (!connection.error) {
+      setShowErrorAlert(false);
+      return;
+    }
+
+    setShowErrorAlert(true);
+
+    if (errorDismissTimerRef.current) {
+      clearTimeout(errorDismissTimerRef.current);
+    }
+    if (errorClearTimerRef.current) {
+      clearTimeout(errorClearTimerRef.current);
+    }
+
+    errorDismissTimerRef.current = setTimeout(() => {
+      setShowErrorAlert(false);
+      errorClearTimerRef.current = setTimeout(() => {
+        connection.setError(null);
+      }, 350);
+    }, 3000);
+
+    return () => {
+      if (errorDismissTimerRef.current) {
+        clearTimeout(errorDismissTimerRef.current);
+      }
+      if (errorClearTimerRef.current) {
+        clearTimeout(errorClearTimerRef.current);
+      }
+    };
+  }, [connection.error]);
 
   const handleMouseDown = () => {
     isDraggingRef.current = true;
@@ -99,6 +210,100 @@ function DigitalTwinView({ activeSection = 'control', onSectionChange = () => { 
 
   const handleMouseUp = () => {
     isDraggingRef.current = false;
+  };
+
+  // Speed marks for the CommandPanel slider
+  const speedMarks = [
+    { value: 100, label: <DirectionsWalkIcon fontSize="small" /> },
+    { value: 300, label: <DirectionsRunIcon fontSize="small" /> },
+    { value: 500, label: <DirectionsBikeIcon fontSize="small" /> },
+    { value: 700, label: <AirplanemodeActiveIcon fontSize="small" /> },
+    { value: 900, label: <RocketLaunchIcon fontSize="small" /> },
+  ];
+
+  const FEEDRATE_MIN = 10;
+  const FEEDRATE_MAX = 1000;
+
+  const clampFeedrate = (value) => Math.max(FEEDRATE_MIN, Math.min(FEEDRATE_MAX, value));
+  const angleToSteps = (deg) => Math.round(Math.max(0, Math.min(STEP_MAX, deg / DEG_PER_STEP)));
+
+  const handleFeedrateChange = (value) => {
+    const numeric = clampFeedrate(parseInt(value, 10) || FEEDRATE_MIN);
+    setFeedrate(numeric);
+  };
+
+  const buildSendCommandForJoints = () => {
+    return `G1 J1:${angleToSteps(jointTargets.J1)} J2:${angleToSteps(jointTargets.J2)} J3:${angleToSteps(jointTargets.J3)} J4:${angleToSteps(jointTargets.J4)} J5:${angleToSteps(jointTargets.J5)} F${feedrate}\n`;
+  };
+
+  const getCommandPanelProps = () => {
+    switch (activeSection) {
+      case 'control':
+        return {
+          connection,
+          isTorqueEnabled,
+          isActionButtonsLocked: areActionButtonsLocked,
+          hasSynced,
+          autoSyncTrigger: torqueAutoSyncTrigger,
+          feedrate,
+          onFeedrateChange: handleFeedrateChange,
+          marks: speedMarks,
+          showSpeedSlider: true,
+          buildSendCommand: () => {
+            if (!hasSynced) {
+              connection.setError('Sync from the arm before sending slider values.');
+              return null;
+            }
+            return buildSendCommandForJoints();
+          },
+          sendLabel: 'Send to Arm',
+        };
+      case 'pose':
+        return {
+          connection,
+          isTorqueEnabled,
+          isActionButtonsLocked: areActionButtonsLocked,
+          hasSynced,
+          autoSyncTrigger: torqueAutoSyncTrigger,
+          feedrate,
+          onFeedrateChange: handleFeedrateChange,
+          marks: speedMarks,
+          showSpeedSlider: true,
+          buildSendCommand: buildSendCommandForJoints,
+          sendLabel: 'Send to Arm',
+        };
+      case 'programming':
+        return {
+          connection,
+          isTorqueEnabled,
+          isActionButtonsLocked: areActionButtonsLocked,
+          hasSynced,
+          autoSyncTrigger: torqueAutoSyncTrigger,
+          feedrate,
+          onFeedrateChange: handleFeedrateChange,
+          marks: speedMarks,
+          showSpeedSlider: true,
+          onSendAction: () => {
+            if (programmingRef.current && typeof programmingRef.current.runProgram === 'function') {
+              programmingRef.current.runProgram();
+            }
+          },
+          sendLabel: 'Send Program',
+        };
+      default:
+        return {
+          connection,
+          isTorqueEnabled,
+          isActionButtonsLocked: areActionButtonsLocked,
+          hasSynced,
+          autoSyncTrigger: torqueAutoSyncTrigger,
+          feedrate,
+          onFeedrateChange: handleFeedrateChange,
+          marks: speedMarks,
+          showSpeedSlider: false,
+          sendLabel: 'Send',
+        };
+    }
   };
 
   return (
@@ -181,28 +386,28 @@ function DigitalTwinView({ activeSection = 'control', onSectionChange = () => { 
                   size="large"
                   color="primary"
                   aria-label="home"
-                  disabled={!connection.isConnected}
+                  disabled={!connection.isConnected || !isTorqueEnabled || areActionButtonsLocked}
                 >
                   <HomeIcon />
                 </IconButton>
               </Tooltip>
               <Tooltip title="Torque on" arrow>
                 <IconButton
-                  onClick={async () => { if (!connection.isConnected) return connection.setError('Connect to a serial port before sending commands.'); const ok = await connection.sendCommandWithTimeout('M17\n'); if (ok) connection.setIsTorqueEnabled && connection.setIsTorqueEnabled(true); }}
+                  onClick={handleTorqueOn}
                   size="large"
                   color="primary"
                   aria-label="power-on"
-                  disabled={!connection.isConnected}
+                  disabled={!connection.isConnected || areActionButtonsLocked}
                 >
                   <PowerIcon />
                 </IconButton>
               </Tooltip>
               <Tooltip title="Torque off" arrow>
                 <IconButton
-                  onClick={async () => { if (!connection.isConnected) return connection.setError('Connect to a serial port before sending commands.'); const ok = await connection.sendCommandWithTimeout('M18\n'); if (ok) connection.setIsTorqueEnabled && connection.setIsTorqueEnabled(false); }}
+                  onClick={handleTorqueOff}
                   size="large"
                   aria-label="power-off"
-                  disabled={!connection.isConnected}
+                  disabled={!connection.isConnected || !isTorqueEnabled || areActionButtonsLocked}
                   sx={{ color: '#f44336' }}
                 >
                   <PowerOffIcon />
@@ -262,6 +467,22 @@ function DigitalTwinView({ activeSection = 'control', onSectionChange = () => { 
               Pose Control
             </Box>
             <Box
+              onClick={() => onSectionChange('programming')}
+              sx={{
+                flex: 1,
+                p: 1,
+                textAlign: 'center',
+                cursor: 'pointer',
+                bgcolor: activeSection === 'programming' ? '#282c34' : '#f0f0f0',
+                color: activeSection === 'programming' ? 'white' : '#333',
+                borderRadius: '4px',
+                fontWeight: activeSection === 'programming' ? 600 : 400,
+                fontSize: '0.9rem',
+              }}
+            >
+              Programming
+            </Box>
+            <Box
               onClick={() => onSectionChange('settings')}
               sx={{
                 flex: 1,
@@ -286,15 +507,31 @@ function DigitalTwinView({ activeSection = 'control', onSectionChange = () => { 
               setJointTargets={setJointTargets}
               connection={connection}
               autoSyncTrigger={autoSyncTrigger}
+              feedrate={feedrate}
+              setFeedrate={setFeedrate}
+              hasSynced={hasSynced}
+              setHasSynced={setHasSynced}
+              isTorqueEnabled={isTorqueEnabled}
+              setIsTorqueEnabled={setIsTorqueEnabled}
             />
           </Box>
           <Box sx={{ display: activeSection === 'pose' ? 'block' : 'none', height: '100%' }}>
             <PoseControl ref={poseControlRef} jointTargets={jointTargets} setJointTargets={setJointTargets} connection={connection} onPlanChange={(plan) => setInterpolationPlan(plan || [])} />
           </Box>
+          <Box sx={{ display: activeSection === 'programming' ? 'block' : 'none', height: '100%' }}>
+            <Programming ref={programmingRef} jointTargets={jointTargets} setJointTargets={setJointTargets} connection={connection} controlsDisabled={!isTorqueEnabled || areActionButtonsLocked || !hasSynced} onPlanChange={(plan) => setInterpolationPlan(plan || [])} />
+          </Box>
           <Box sx={{ display: activeSection === 'settings' ? 'block' : 'none', height: '100%' }}>
             <Settings />
           </Box>
         </Box>
+
+        {/* Unified Command Panel */}
+        <CommandPanel
+          {...getCommandPanelProps()}
+          showErrorAlert={showErrorAlert}
+          error={connection.error}
+        />
       </Box>
 
       {/* Draggable Divider */}
@@ -323,7 +560,21 @@ function DigitalTwinView({ activeSection = 'control', onSectionChange = () => { 
           bgcolor: 'white',
         }}
       >
-        <URDFSceneViewport jointTargets={jointTargets} setJointTargets={setJointTargets} showTransformControls={activeSection === 'pose'} interpolationPlan={interpolationPlan} onWaypointClick={(idx) => { if (poseControlRef.current && typeof poseControlRef.current.setCurrentStepIndex === 'function') { poseControlRef.current.setCurrentStepIndex(idx); } }} />
+        <URDFSceneViewport
+          jointTargets={jointTargets}
+          setJointTargets={setJointTargets}
+          showTransformControls={activeSection === 'pose' || activeSection === 'programming'}
+          interpolationPlan={interpolationPlan}
+          onWaypointClick={(idx) => {
+            if (programmingRef.current && typeof programmingRef.current.setCurrentStepIndex === 'function') {
+              programmingRef.current.setCurrentStepIndex(idx);
+              return;
+            }
+            if (poseControlRef.current && typeof poseControlRef.current.setCurrentStepIndex === 'function') {
+              poseControlRef.current.setCurrentStepIndex(idx);
+            }
+          }}
+        />
       </Box>
     </Box>
   );

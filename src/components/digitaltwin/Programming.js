@@ -1,13 +1,17 @@
-import { useState, useMemo, forwardRef } from 'react';
-import { Box, TextField, Paper, Stack, Typography, Slider } from '@mui/material';
+import { useState, useMemo, useRef, forwardRef, useImperativeHandle } from 'react';
+import { Box, Button, TextField, Paper, Stack, Typography, Alert, Fade, Slider } from '@mui/material';
+import SendIcon from '@mui/icons-material/Send';
+import SyncIcon from '@mui/icons-material/Sync';
+import SaveAltIcon from '@mui/icons-material/SaveAlt';
 import DirectionsWalkIcon from '@mui/icons-material/DirectionsWalk';
 import DirectionsRunIcon from '@mui/icons-material/DirectionsRun';
 import DirectionsBikeIcon from '@mui/icons-material/DirectionsBike';
 import AirplanemodeActiveIcon from '@mui/icons-material/AirplanemodeActive';
 import RocketLaunchIcon from '@mui/icons-material/RocketLaunch';
 import { calculateForwardKinematicsMatrixDegrees } from '../helper/kinematics/fk';
-// import { calculateInverseKinematicsMatrixDegrees } from '../helper/kinematics/ik';
 import { calculateInverseKinematicsMatrixDegrees } from '../helper/kinematics/ik';
+import PoseProgram from './PoseProgram';
+
 
 const FEEDRATE_MIN = 10;
 const FEEDRATE_MAX = 1000;
@@ -20,10 +24,20 @@ const STEP_MAX = 1023;
 const DEG_PER_STEP = 0.29;
 const angleToSteps = (deg) => Math.round(Math.max(0, Math.min(STEP_MAX, deg / DEG_PER_STEP)));
 
-const PoseControl = forwardRef(function PoseControl({ jointTargets, setJointTargets, connection, onPlanChange = null }, ref) {
+const Programming = forwardRef(function Programming({ jointTargets, setJointTargets, connection, onPlanChange = null, controlsDisabled = false }, ref) {
   const [feedrate, setFeedrate] = useState(300);
   const [showErrorAlert, setShowErrorAlert] = useState(false);
   const [error, setError] = useState(null);
+  const [enableProgramming] = useState(true);
+  const programRef = useRef(null);
+
+  useImperativeHandle(ref, () => ({
+    setCurrentStepIndex: (idx) => {
+      if (programRef.current && typeof programRef.current.setCurrentStepIndex === 'function') {
+        programRef.current.setCurrentStepIndex(idx);
+      }
+    }
+  }), []);
 
   const speedMarks = [
     { value: 100, label: <DirectionsWalkIcon fontSize="small" /> },
@@ -123,12 +137,23 @@ const PoseControl = forwardRef(function PoseControl({ jointTargets, setJointTarg
     }
   };
 
-  const sliderSx = { width: '90%', ml: 1 };
-  const inputSx = { width: '72px', '& input': { textAlign: 'center', py: '4px', fontSize: '12px' } };
+  const handleSendProgram = () => {
+    if (programRef.current && typeof programRef.current.runProgram === 'function') {
+      programRef.current.runProgram();
+    }
+  };
+
+  const handleSaveTimeframe = () => {
+    if (programRef.current && typeof programRef.current.addFrame === 'function') {
+      programRef.current.addFrame();
+      return;
+    }
+
+    showError('Pose Program is not ready yet.');
+  };
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      {/* Scrollable content area */}
       <Box sx={{ flex: 1, overflow: 'auto', p: 3 }}>
         <Stack spacing={2}>
           <Paper sx={{ p: 2 }}>
@@ -145,18 +170,15 @@ const PoseControl = forwardRef(function PoseControl({ jointTargets, setJointTarg
                     sx={{ pt: index === 0 ? 0 : 1, borderTop: index === 0 ? 'none' : '1px solid #eee' }}
                   >
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Typography variant="body2" fontFamily="monospace" textTransform="uppercase">
-                        {axis} (m):
-                      </Typography>
+                      <Typography variant="body2" fontFamily="monospace" textTransform="uppercase">{axis} (m):</Typography>
                       <Slider
                         min={minVal}
                         max={maxVal}
                         step={STEP}
-
                         value={currentPos[axis]}
                         onChange={(e, val) => handlePosChange(axis, val)}
                         size="small"
-                        sx={{ ...sliderSx, flex: 1, ml: 0 }}
+                        sx={{ flex: 1, ml: 0 }}
                       />
                       <TextField
                         type="number"
@@ -164,18 +186,37 @@ const PoseControl = forwardRef(function PoseControl({ jointTargets, setJointTarg
                         inputProps={{ min: minVal, max: maxVal, step: STEP }}
                         value={currentPos[axis].toFixed(3)}
                         onChange={(e) => handlePosChange(axis, e.target.value)}
-                        sx={inputSx}
+                        sx={{ width: '72px', '& input': { textAlign: 'center', py: '4px', fontSize: '12px' } }}
                       />
                     </Box>
                   </Box>
                 );
               })}
             </Box>
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
+              <Button size="small" variant="outlined" startIcon={<SaveAltIcon />} onClick={handleSaveTimeframe} disabled={controlsDisabled}>Add Timeframe</Button>
+            </Box>
           </Paper>
+
+          <Box>
+            <PoseProgram
+              ref={programRef}
+              currentPos={currentPos}
+              jointTargets={jointTargets}
+              feedrate={feedrate}
+              setJointTargets={setJointTargets}
+              setFeedrate={setFeedrate}
+              connection={connection}
+              onError={showError}
+              hideRunButton={false}
+              controlsDisabled={controlsDisabled}
+              onPlanChange={onPlanChange}
+            />
+          </Box>
         </Stack>
       </Box>
     </Box>
   );
 });
 
-export default PoseControl;
+export default Programming;

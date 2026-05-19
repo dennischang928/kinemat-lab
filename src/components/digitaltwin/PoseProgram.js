@@ -43,7 +43,7 @@ const clampInterpolationSteps = (value) => Math.max(INTERP_STEPS_MIN, Math.min(I
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const ProgramInner = forwardRef(function PoseProgram({ currentPos, jointTargets, feedrate, setJointTargets, setFeedrate, connection, onError, hideRunButton = false, onPlanChange = null }, ref) {
+const ProgramInner = forwardRef(function PoseProgram({ currentPos, jointTargets, feedrate, setJointTargets, setFeedrate, connection, onError, hideRunButton = false, controlsDisabled = false, onPlanChange = null }, ref) {
 	const [frames, setFrames] = useState([]);
 	const [isRunning, setIsRunning] = useState(false);
 	const [useLinearInterpolation, setUseLinearInterpolation] = useState(false);
@@ -61,6 +61,8 @@ const ProgramInner = forwardRef(function PoseProgram({ currentPos, jointTargets,
 			runProgram();
 		}
 	};
+
+	const isInteractionLocked = controlsDisabled || isRunning;
 
 	useEffect(() => {
 		setCurrentStepIndex(0);
@@ -353,19 +355,6 @@ const ProgramInner = forwardRef(function PoseProgram({ currentPos, jointTargets,
 					)}
 				</Stack>
 
-				<Stack direction="row" spacing={1}>
-					{!hideRunButton && (
-						<Button
-							size="small"
-							variant="contained"
-							startIcon={<PlayArrowIcon />}
-							onClick={runProgram}
-							disabled={!hasFrames || isRunning}
-						>
-							{isRunning ? 'Running...' : 'Run Program'}
-						</Button>
-					)}
-				</Stack>
 				<Stack direction="row" spacing={2} alignItems="center" sx={{ justifyContent: "space-between" }}>
 					<FormControlLabel
 						control={
@@ -373,7 +362,7 @@ const ProgramInner = forwardRef(function PoseProgram({ currentPos, jointTargets,
 								size="small"
 								checked={useLinearInterpolation}
 								onChange={(e) => setUseLinearInterpolation(e.target.checked)}
-								disabled={isRunning}
+								disabled={isInteractionLocked}
 							/>
 						}
 						label="Use linear interpolation"
@@ -388,7 +377,7 @@ const ProgramInner = forwardRef(function PoseProgram({ currentPos, jointTargets,
 							onChange={(e) => handleInterpolationStepsChange(e.target.value)}
 							inputProps={{ min: INTERP_STEPS_MIN, max: INTERP_STEPS_MAX, step: 1 }}
 							// sx={{ width: 220 }}
-							disabled={isRunning}
+								disabled={isInteractionLocked}
 						/>
 					)}
 				</Stack>
@@ -407,18 +396,18 @@ const ProgramInner = forwardRef(function PoseProgram({ currentPos, jointTargets,
 									<IconButton
 										size="small"
 										onClick={() => moveFrame(index, -1)}
-										disabled={isRunning || index === 0}
+										disabled={isInteractionLocked || index === 0}
 									>
 										<ArrowUpwardIcon fontSize="small" />
 									</IconButton>
 									<IconButton
 										size="small"
 										onClick={() => moveFrame(index, 1)}
-										disabled={isRunning || index === frames.length - 1}
+										disabled={isInteractionLocked || index === frames.length - 1}
 									>
 										<ArrowDownwardIcon fontSize="small" />
 									</IconButton>
-									<IconButton size="small" onClick={() => removeFrame(frame.id)} disabled={isRunning}>
+									<IconButton size="small" onClick={() => removeFrame(frame.id)} disabled={isInteractionLocked}>
 										<DeleteOutlineIcon fontSize="small" />
 									</IconButton>
 								</Stack>
@@ -434,7 +423,7 @@ const ProgramInner = forwardRef(function PoseProgram({ currentPos, jointTargets,
 									value={frame.feedrate}
 									onChange={(e) => updateFrameSpeed(frame.id, e.target.value)}
 									sx={{ width: 120 }}
-									disabled={isRunning}
+									disabled={isInteractionLocked}
 								>
 									{SPEED_OPTIONS.map((speedValue) => (
 										<MenuItem key={speedValue} value={speedValue}>
@@ -447,7 +436,7 @@ const ProgramInner = forwardRef(function PoseProgram({ currentPos, jointTargets,
 									variant="text"
 									startIcon={<SaveAltIcon />}
 									onClick={() => loadFrameToPose(frame)}
-									disabled={isRunning}
+									disabled={isInteractionLocked}
 								>
 									Load
 								</Button>
@@ -481,11 +470,22 @@ const ProgramInner = forwardRef(function PoseProgram({ currentPos, jointTargets,
 							max={Math.max(0, savedInterpolation.length - 1)}
 							step={1}
 							onChange={handleSliderChange}
-							disabled={isRunning || savedInterpolation.length <= 1}
+								disabled={isInteractionLocked || savedInterpolation.length <= 1}
 							valueLabelDisplay="auto"
 							valueLabelFormat={(val) => `${val + 1} / ${savedInterpolation.length}`}
 							sx={{ flex: 1, ml: 1, mr: 2 }}
 						/>
+						{!hideRunButton && (
+							<IconButton
+								color="primary"
+								onClick={runProgram}
+								disabled={!hasFrames || isInteractionLocked}
+								aria-label={isRunning ? 'Running program' : 'Run program'}
+								sx={{ ml: 1 }}
+							>
+								<PlayArrowRoundedIcon />
+							</IconButton>
+						)}
 					</Box>
 					// </Box>
 				)}
