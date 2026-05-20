@@ -10,6 +10,7 @@ import AirplanemodeActiveIcon from '@mui/icons-material/AirplanemodeActive';
 import RocketLaunchIcon from '@mui/icons-material/RocketLaunch';
 import { calculateForwardKinematicsMatrixDegrees } from '../helper/kinematics/fk';
 import { calculateInverseKinematicsMatrixDegrees } from '../helper/kinematics/ik';
+// import { calculateInverseKinematicsMatrixDegrees } from '../helper/kinematics/ik_symbolic';
 import PoseProgram from './PoseProgram';
 
 
@@ -24,7 +25,15 @@ const STEP_MAX = 1023;
 const DEG_PER_STEP = 0.29;
 const angleToSteps = (deg) => Math.round(Math.max(0, Math.min(STEP_MAX, deg / DEG_PER_STEP)));
 
-const Programming = forwardRef(function Programming({ jointTargets, setJointTargets, connection, onPlanChange = null, controlsDisabled = false }, ref) {
+const Programming = forwardRef(function Programming({
+  jointTargets,
+  setJointTargets,
+  connection,
+  isTorqueEnabled = true,
+  onPlanChange = null,
+  controlsDisabled = false,
+  setProgramButtonLabel,
+}, ref) {
   const [feedrate, setFeedrate] = useState(300);
   const [showErrorAlert, setShowErrorAlert] = useState(false);
   const [error, setError] = useState(null);
@@ -32,11 +41,10 @@ const Programming = forwardRef(function Programming({ jointTargets, setJointTarg
   const programRef = useRef(null);
 
   useImperativeHandle(ref, () => ({
-    setCurrentStepIndex: (idx) => {
-      if (programRef.current && typeof programRef.current.setCurrentStepIndex === 'function') {
-        programRef.current.setCurrentStepIndex(idx);
-      }
-    }
+    setCurrentStepIndex: handleSetCurrentStepIndex,
+    runProgram: handleRunProgram,
+    sendProgram: handleSendProgram,
+    getSavedInterpolation: handleGetSavedInterpolation,
   }), []);
 
   const speedMarks = [
@@ -130,6 +138,11 @@ const Programming = forwardRef(function Programming({ jointTargets, setJointTarg
       return;
     }
 
+    if (!isTorqueEnabled) {
+      showError('Turn torque on before sending.');
+      return;
+    }
+
     const command = `G1 J1:${angleToSteps(jointTargets.J1)} J2:${angleToSteps(jointTargets.J2)} J3:${angleToSteps(jointTargets.J3)} J4:${angleToSteps(jointTargets.J4)} J5:${angleToSteps(jointTargets.J5)} F${feedrate}\n`;
     const ok = await connection.sendCommandWithTimeout(command);
     if (!ok) {
@@ -137,11 +150,32 @@ const Programming = forwardRef(function Programming({ jointTargets, setJointTarg
     }
   };
 
-  const handleSendProgram = () => {
-    if (programRef.current && typeof programRef.current.runProgram === 'function') {
-      programRef.current.runProgram();
+  function handleSendProgram() {
+    if (programRef.current && typeof programRef.current.sendProgram === 'function') {
+      return programRef.current.sendProgram();
     }
-  };
+    return null;
+  }
+
+  function handleSetCurrentStepIndex(idx) {
+    if (programRef.current && typeof programRef.current.setCurrentStepIndex === 'function') {
+      programRef.current.setCurrentStepIndex(idx);
+    }
+  }
+
+  function handleRunProgram() {
+    if (programRef.current && typeof programRef.current.runProgram === 'function') {
+      return programRef.current.runProgram();
+    }
+    return null;
+  }
+
+  function handleGetSavedInterpolation() {
+    if (programRef.current && typeof programRef.current.getSavedInterpolation === 'function') {
+      return programRef.current.getSavedInterpolation();
+    }
+    return [];
+  }
 
   const handleSaveTimeframe = () => {
     if (programRef.current && typeof programRef.current.addFrame === 'function') {
@@ -207,10 +241,12 @@ const Programming = forwardRef(function Programming({ jointTargets, setJointTarg
               setJointTargets={setJointTargets}
               setFeedrate={setFeedrate}
               connection={connection}
+              isTorqueEnabled={isTorqueEnabled}
               onError={showError}
               hideRunButton={false}
               controlsDisabled={controlsDisabled}
               onPlanChange={onPlanChange}
+              setProgramButtonLabel={setProgramButtonLabel}
             />
           </Box>
         </Stack>

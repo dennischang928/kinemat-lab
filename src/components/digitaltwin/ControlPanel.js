@@ -20,19 +20,18 @@ const stepsToAngle = (steps) => parseFloat((steps * DEG_PER_STEP).toFixed(2));
 const FEEDRATE_MIN = 10;
 const FEEDRATE_MAX = 1000;
 
-function ControlPanel({ 
-  jointTargets, 
-  setJointTargets, 
-  connection, 
-  autoSyncTrigger = 0,
+function ControlPanel({
+  jointTargets,
+  setJointTargets,
+  connection,
   feedrate = 300,
-  setFeedrate = () => {},
+  setFeedrate = () => { },
   hasSynced = false,
-  setHasSynced = () => {},
+  setHasSynced = () => { },
   isSyncing = false,
-  setIsSyncing = () => {},
+  setIsSyncing = () => { },
   isTorqueEnabled = true,
-  setIsTorqueEnabled = () => {},
+  setIsTorqueEnabled = () => { },
 }) {
   const {
     isConnected,
@@ -62,7 +61,14 @@ function ControlPanel({
       readBufferRef.current = '';
       return;
     }
-
+    // Subscribe to serial text coming from the arm. We're looking for
+    // a position report matching `J1:.. J2:.. J3:.. J4:.. J5:..` which
+    // is emitted in response to `M114` (the sync command).
+    // This is the readback side of the handshake: send sync in one
+    // component, parse the position report here, and then unlock the UI.
+    // When we parse a full position line we update `jointTargets`
+    // and call `setHasSynced(true)` to signal the rest of the UI that
+    // it's safe to enable action controls.
     const unsubscribe = connection.subscribe((text) => {
       readBufferRef.current += text;
       const lines = readBufferRef.current.split(/\r?\n/);
@@ -75,6 +81,8 @@ function ControlPanel({
           setError(line);
         }
 
+        // Example position line expected from the firmware:
+        // "J1:123 J2:456 J3:789 J4:012 J5:345"
         const match = line.match(/J1:(\d+)\s+J2:(\d+)\s+J3:(\d+)\s+J4:(\d+)\s+J5:(\d+)/);
         if (match) {
           setJointTargets({
@@ -84,6 +92,8 @@ function ControlPanel({
             J4: stepsToAngle(parseInt(match[4], 10)),
             J5: stepsToAngle(parseInt(match[5], 10)),
           });
+          // Got a valid position report — mark as synced so other
+          // UI parts (buttons, sliders, program controls) can enable.
           setHasSynced(true);
           setIsSyncing(false);
         }
@@ -94,19 +104,7 @@ function ControlPanel({
     connection.startReading();
     return () => unsubscribe();
   }, [isConnected, connection, setJointTargets, setError]);
-
-  useEffect(() => {
-    const handleKeyDown = (event) => {
-      if (!isConnected) return;
-      if (event.code !== 'Space') return;
-      event.preventDefault();
-      handleQuickCommand('M18');
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isConnected]);
-
+  
   const clampAngle = (value) => Math.max(ANGLE_MIN, Math.min(ANGLE_MAX, value));
   const clampFeedrateValue = (value) => Math.max(FEEDRATE_MIN, Math.min(FEEDRATE_MAX, value));
 
@@ -137,32 +135,6 @@ function ControlPanel({
     return true;
   };
 
-  const handleSyncFromArm = async () => {
-    if (!isConnected) {
-      setError('Connect to a serial port before syncing.');
-      return;
-    }
-
-    if (!isTorqueEnabled) {
-      setError('Turn torque on before syncing.');
-      return;
-    }
-
-    setIsSyncing(true);
-    const ok = await sendCommandWithTimeout('M114\n');
-    if (!ok) {
-      setIsSyncing(false);
-    }
-  };
-
-  // Auto-sync when the parent signals a trigger (increments)
-  useEffect(() => {
-    if (!autoSyncTrigger) return;
-    if (!connection?.isConnected) return;
-    // fire-and-forget; handleSyncFromArm manages its own state
-    handleSyncFromArm();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoSyncTrigger]);
 
   const handleSendSliders = async () => {
     if (!isConnected) {
@@ -187,36 +159,6 @@ function ControlPanel({
     }
   };
 
-  const handleQuickCommand = async (command) => {
-    if (!isConnected) {
-      setError('Connect to a serial port before sending commands.');
-      return;
-    }
-
-    if (!isTorqueEnabled && command !== 'M17') {
-      setError('Turn torque on before using this control.');
-      return;
-    }
-
-    const ok = await sendCommandWithTimeout(`${command}\n`, { waitForOk: command !== 'M18' });
-    if (!ok) {
-      setError('No OK received within 5 seconds.');
-      return;
-    }
-
-    if (command === 'M17') {
-      setIsTorqueEnabled(true);
-    }
-
-    if (command === 'M18') {
-      setIsTorqueEnabled(false);
-    }
-
-    if (command === 'M17' || command === 'M18' || command === 'M140') {
-      setHasSynced(false);
-      setIsSyncing(false);
-    }
-  };
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -232,34 +174,34 @@ function ControlPanel({
         <Paper sx={{ p: 2, mb: 3 }}>
           <Stack spacing={2}>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                {JOINT_KEYS.map((joint, index) => (
-                  <Box
-                    key={joint}
-                    sx={{ pt: index === 0 ? 0 : 1, borderTop: index === 0 ? 'none' : '1px solid #eee' }}
-                  >
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Typography variant="body2" fontFamily="monospace">{joint}:</Typography>
-                      <Slider
-                        min={ANGLE_MIN}
-                        max={ANGLE_MAX}
-                        step={DEG_PER_STEP}
-                        value={jointTargets[joint]}
-                        onChange={(e, val) => handleJointChange(joint, val)}
-                        size="small"
-                        sx={{ ...sliderSx, flex: 1, ml: 0 }}
-                      />
-                      <TextField
-                        type="number"
-                        size="small"
-                        inputProps={{ min: ANGLE_MIN, max: ANGLE_MAX, step: DEG_PER_STEP }}
-                        value={jointTargets[joint]}
-                        onChange={(e) => handleJointChange(joint, e.target.value)}
-                        sx={inputSx}
-                      />
-                    </Box>
+              {JOINT_KEYS.map((joint, index) => (
+                <Box
+                  key={joint}
+                  sx={{ pt: index === 0 ? 0 : 1, borderTop: index === 0 ? 'none' : '1px solid #eee' }}
+                >
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Typography variant="body2" fontFamily="monospace">{joint}:</Typography>
+                    <Slider
+                      min={ANGLE_MIN}
+                      max={ANGLE_MAX}
+                      step={DEG_PER_STEP}
+                      value={jointTargets[joint]}
+                      onChange={(e, val) => handleJointChange(joint, val)}
+                      size="small"
+                      sx={{ ...sliderSx, flex: 1, ml: 0 }}
+                    />
+                    <TextField
+                      type="number"
+                      size="small"
+                      inputProps={{ min: ANGLE_MIN, max: ANGLE_MAX, step: DEG_PER_STEP }}
+                      value={jointTargets[joint]}
+                      onChange={(e) => handleJointChange(joint, e.target.value)}
+                      sx={inputSx}
+                    />
                   </Box>
-                ))}
-              </Box>
+                </Box>
+              ))}
+            </Box>
           </Stack>
         </Paper>
       </Box>

@@ -123,6 +123,26 @@ export const useSerialConnection = () => {
     }
   }, [selectedPort]);
 
+  // Send raw bytes — reuses a persistent writer to avoid getWriter/releaseLock
+  // overhead on every call. Ideal for high-frequency fire-and-forget commands (G0).
+  const sendRaw = useCallback(async (data) => {
+    if (!selectedPort || !isConnected) return false;
+    try {
+      if (!writerRef.current) {
+        writerRef.current = selectedPort.writable.getWriter();
+      }
+      const encoded = new TextEncoder().encode(data);
+      await writerRef.current.write(encoded);
+      return true;
+    } catch (err) {
+      // Writer may have gone stale; release and let the next call recreate it.
+      try { writerRef.current?.releaseLock(); } catch (_) { /* ignore */ }
+      writerRef.current = null;
+      setError(`Failed to send raw data: ${err.message}`);
+      return false;
+    }
+  }, [selectedPort, isConnected]);
+
   // Send data
   const sendData = useCallback(async (data) => {
     try {
@@ -131,28 +151,26 @@ export const useSerialConnection = () => {
         return false;
       }
 
+      if (writerRef.current) {
+        try {
+          writerRef.current.releaseLock();
+        } catch (_) {}
+        writerRef.current = null;
+      }
+
       const writer = selectedPort.writable.getWriter();
-      writerRef.current = writer;
       const encoder = new TextEncoder();
       const encoded = encoder.encode(typeof data === 'string' ? data : JSON.stringify(data));
       await writer.write(encoded);
       writer.releaseLock();
-      writerRef.current = null;
       return true;
     } catch (err) {
       setError(`Failed to send data: ${err.message}`);
       return false;
-    } finally {
-      if (writerRef.current) {
-        try {
-          writerRef.current.releaseLock();
-        } catch (releaseErr) {
-          // Ignore lock-release errors.
-        }
-        writerRef.current = null;
-      }
     }
   }, [selectedPort, isConnected]);
+
+
 
   // Send command and wait for OK/ERR within timeout
   const sendCommandWithTimeout = useCallback(async (command, { waitForOk = true, timeout = 5000 } = {}) => {
@@ -161,6 +179,15 @@ export const useSerialConnection = () => {
       return false;
     }
 
+    // Cancel any existing pending response waiting for OK/ERR. We
+    // use `pendingResponseRef` to pair write calls with the next
+    // OK/ERR line received by the read loop. This is a simple
+    // request-response mechanism used by commands like M114/M17/M18.
+    // When the reader sees a line containing "OK" it resolves the
+    // pending promise; "ERR" resolves with failure.
+    //
+    // Note: This simple mechanism assumes the firmware emits OK/ERR
+    // on its own lines and that commands are not pipelined.
     // Cancel any existing pending
     if (pendingResponseRef.current) {
       pendingResponseRef.current.resolve(false);
@@ -211,18 +238,20 @@ export const useSerialConnection = () => {
           if (done) break;
           const text = decoder.decode(value);
 
-          // notify all listeners
+          // notify all listeners (components may accumulate and parse
+          // partial lines; they manage their own buffers)
           lineListenersRef.current.forEach((cb) => {
             try { cb(text); } catch (e) { /* ignore listener errors */ }
           });
 
-          // simple OK/ERR handling for pending command
+          // split into lines and handle OK/ERR for pending commands
           const lines = text.split(/\r?\n/);
           lines.forEach((line) => {
             if (!line) return;
             const okFound = /\bOK\b/.test(line);
             const errFound = /^ERR\b/.test(line);
             if ((okFound || errFound) && pendingResponseRef.current) {
+              // resolve the promise waiting for an OK/ERR from the device
               pendingResponseRef.current.resolve(okFound && !errFound);
               pendingResponseRef.current = null;
               if (pendingTimeoutRef.current) {
@@ -245,6 +274,9 @@ export const useSerialConnection = () => {
   }, [selectedPort, isConnected]);
 
   const subscribe = useCallback((cb) => {
+    // Subscribers receive raw text chunks from the serial reader.
+    // Components should buffer and split lines themselves (see
+    // `ControlPanel` for an example). Returns an unsubscribe fn.
     lineListenersRef.current.add(cb);
     return () => lineListenersRef.current.delete(cb);
   }, []);
@@ -267,6 +299,7 @@ export const useSerialConnection = () => {
     connect,
     disconnect,
     sendData,
+    sendRaw,
     startReading,
     subscribe,
     sendCommandWithTimeout,

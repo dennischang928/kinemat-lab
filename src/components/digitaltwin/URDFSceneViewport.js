@@ -8,6 +8,7 @@ import { XacroParser } from 'xacro-parser';
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
 import { ColladaLoader } from 'three/examples/jsm/loaders/ColladaLoader.js';
 import { calculateForwardKinematicsMatrixDegrees } from '../helper/kinematics/fk';
+// import { calculateInverseKinematicsMatrixDegrees } from '../helper/kinematics/ik_symbolic';
 import { calculateInverseKinematicsMatrixDegrees } from '../helper/kinematics/ik';
 
 const DEFAULT_CAMERA = [6, 6, 6];
@@ -18,10 +19,10 @@ const pincherDescriptionContext = require.context('./pincher_arm_description', t
 
 const normalizePath = (value = '') => value.replace(/\\/g, '/').replace(/^\.?\//, '').toLowerCase();
 const normalizeXacroMath = (text = '') => text.replace(/\*\*/g, '^');
+const FK_TO_SCENE_ROTATION = new THREE.Matrix4().makeRotationX(-Math.PI / 2);
 
 const buildBundledPackageMap = () => {
   const fileMap = new Map();
-
   pincherDescriptionContext.keys().forEach((key) => {
     const assetUrl = pincherDescriptionContext(key);
     const relativePath = normalizePath(key.replace(/^\.\//, ''));
@@ -109,7 +110,48 @@ const solveIKForWorldPosition = ((worldPos, currentJoints) => {
   return null;
 })
 
-function SceneContent({ robot, jointTargets, setJointTargets, showGrid, showAxes, controlsRef, showTransformControls, transformPosition, interpolationPlan = [], onWaypointClick }) {
+const buildScenePoseFromJointTargets = (jointTargets) => {
+  const centerOffsetDeg = 148.335;
+  const fkMatrixValues = calculateForwardKinematicsMatrixDegrees({
+    q1: (jointTargets.J1 || 0) - centerOffsetDeg,
+    q2: (jointTargets.J2 || 0) - centerOffsetDeg,
+    q3: (jointTargets.J3 || 0) - centerOffsetDeg,
+    q4: (jointTargets.J4 || 0) - centerOffsetDeg,
+    q5: (jointTargets.J5 || 0) - centerOffsetDeg,
+  });
+
+  const fkMatrix = new THREE.Matrix4().set(
+    fkMatrixValues[0][0], fkMatrixValues[0][1], fkMatrixValues[0][2], fkMatrixValues[0][3],
+    fkMatrixValues[1][0], fkMatrixValues[1][1], fkMatrixValues[1][2], fkMatrixValues[1][3],
+    fkMatrixValues[2][0], fkMatrixValues[2][1], fkMatrixValues[2][2], fkMatrixValues[2][3],
+    fkMatrixValues[3][0], fkMatrixValues[3][1], fkMatrixValues[3][2], fkMatrixValues[3][3],
+  );
+
+  const sceneMatrix = new THREE.Matrix4().multiplyMatrices(FK_TO_SCENE_ROTATION, fkMatrix);
+  const position = new THREE.Vector3();
+  const quaternion = new THREE.Quaternion();
+  const scale = new THREE.Vector3();
+  sceneMatrix.decompose(position, quaternion, scale);
+
+  return {
+    position: position.toArray(),
+    quaternion,
+  };
+};
+
+function SceneContent({
+  robot,
+  jointTargets,
+  setJointTargets,
+  showGrid,
+  showAxes,
+  controlsRef,
+  showTransformControls,
+  transformPosition,
+  transformQuaternion,
+  interpolationPlan = [],
+  onWaypointClick,
+}) {
   const { camera } = useThree();
   const meshRef = useRef();
   const pathGroupRef = useRef();
@@ -238,10 +280,7 @@ function SceneContent({ robot, jointTargets, setJointTargets, showGrid, showAxes
         <TransformControls
           mode="translate"
           position={transformPosition}
-          size={0.6}
-          // onObjectChange={
-
-          // }
+          size={0.5}
           onMouseUp={(e) => {
             if (controlsRef.current) {
               controlsRef.current.enabled = !e.value;
@@ -260,12 +299,28 @@ function SceneContent({ robot, jointTargets, setJointTargets, showGrid, showAxes
             }
           }}
         >
-          <mesh ref={meshRef}>
-            <sphereGeometry args={[0.009, 16, 16]} />
-            <meshBasicMaterial color="#ff00ff" transparent opacity={0.5} />
-          </mesh>
+          <group ref={meshRef} quaternion={transformQuaternion}>
+            <mesh position={[0.02, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
+              <cylinderGeometry args={[0.004, 0.004, 0.04, 12]} />
+              <meshStandardMaterial color="#ff00ff" emissive="#7a007a" emissiveIntensity={0.35} />
+            </mesh>
+            <mesh position={[0.05, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
+              <coneGeometry args={[0.008, -0.02, 12]} />
+              <meshStandardMaterial color="#ff1744" emissive="#7a0016" emissiveIntensity={0.4} />
+            </mesh>
+            {/* <mesh position={[0, 0, 0]}>
+              <sphereGeometry args={[0.007, 16, 16]} />
+              <meshStandardMaterial color="#ffffff" emissive="#ffffff" emissiveIntensity={0.15} />
+            </mesh> */}
+          </group>
         </TransformControls>
       )}
+      {showTransformControls && (<TransformControls
+        mode="rotate"
+        position={transformPosition}
+        size={0.6}
+      >
+      </TransformControls>)}
 
       <OrbitControls
         ref={controlsRef}
@@ -288,23 +343,14 @@ function URDFSceneViewport({ jointTargets, setJointTargets, showTransformControl
   const [showAxes] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
 
-  const transformPosition = useMemo(() => {
-    if (!jointTargets) return [0, 0, 0];
-
-    const centerOffsetDeg = 148.335;
-    const T = calculateForwardKinematicsMatrixDegrees({
-      q1: (jointTargets.J1 || 0) - centerOffsetDeg,
-      q2: (jointTargets.J2 || 0) - centerOffsetDeg,
-      q3: (jointTargets.J3 || 0) - centerOffsetDeg,
-      q4: (jointTargets.J4 || 0) - centerOffsetDeg,
-      q5: (jointTargets.J5 || 0) - centerOffsetDeg,
-    });
-
-    const x = T[0][3];
-    const y = T[1][3];
-    const z = T[2][3];
-
-    return [x, z, -y];
+  const transformPose = useMemo(() => {
+    if (!jointTargets) {
+      return {
+        position: [0, 0, 0],
+        quaternion: new THREE.Quaternion(),
+      };
+    }
+    return buildScenePoseFromJointTargets(jointTargets);
   }, [jointTargets]);
 
   const hasRobot = useMemo(() => Boolean(robot), [robot]);
@@ -482,7 +528,8 @@ function URDFSceneViewport({ jointTargets, setJointTargets, showTransformControl
           showAxes={showAxes}
           controlsRef={controlsRef}
           showTransformControls={showTransformControls}
-          transformPosition={transformPosition}
+          transformPosition={transformPose.position}
+          transformQuaternion={transformPose.quaternion}
           interpolationPlan={interpolationPlan}
           onWaypointClick={onWaypointClick}
         />

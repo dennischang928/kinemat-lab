@@ -25,14 +25,22 @@ const ANGLE_MAX = parseFloat((STEP_MAX * DEG_PER_STEP).toFixed(2));
 const DEFAULT_JOINTS = { J1: ANGLE_MAX / 2, J2: ANGLE_MAX / 2, J3: ANGLE_MAX / 2, J4: ANGLE_MAX / 2, J5: ANGLE_MAX / 2 };
 
 function DigitalTwinView({ activeSection = 'control', onSectionChange = () => { } }) {
+  // This view owns the shared digital-twin state and only delegates
+  // section-specific UI/commands to the child panels below.
   const [leftPanelWidth, setLeftPanelWidth] = useState(30); // percentage
   const [jointTargets, setJointTargets] = useState(DEFAULT_JOINTS);
   const [interpolationPlan, setInterpolationPlan] = useState([]);
+  const [isLinearInterpolationEnabled, setIsLinearInterpolationEnabled] = useState(false);
   const [feedrate, setFeedrate] = useState(300);
   const [hasSynced, setHasSynced] = useState(false);
   const [isTorqueEnabled, setIsTorqueEnabled] = useState(true);
   const [areActionButtonsLocked, setAreActionButtonsLocked] = useState(false);
+  // `hasSynced` indicates whether we've received a full position report
+  // from the arm (via `M114`). Until `hasSynced` is true, user-facing
+  // action controls must remain disabled to avoid sending potentially
+  // unsafe commands to an unknown arm state.
   const [showErrorAlert, setShowErrorAlert] = useState(false);
+  const [programButtonLabel, setProgramButtonLabel] = useState('Send Program');
   const isDraggingRef = useRef(false);
   const poseControlRef = useRef(null);
   const programmingRef = useRef(null);
@@ -42,7 +50,9 @@ function DigitalTwinView({ activeSection = 'control', onSectionChange = () => { 
   const [isDisconnecting, setIsDisconnecting] = useState(false);
   const [baudMenuAnchorEl, setBaudMenuAnchorEl] = useState(null);
   const [autoSyncTrigger, setAutoSyncTrigger] = useState(0);
-  const [torqueAutoSyncTrigger, setTorqueAutoSyncTrigger] = useState(0);
+  // Shared syncing state used by ControlPanel and CommandPanel so both
+  // components reflect when a sync is in-progress.
+  const [isSyncing, setIsSyncing] = useState(false);
   const errorDismissTimerRef = useRef(null);
   const errorClearTimerRef = useRef(null);
   const torqueUnlockTimerRef = useRef(null);
@@ -63,6 +73,19 @@ function DigitalTwinView({ activeSection = 'control', onSectionChange = () => { 
         const success = await connection.connect(port, baudRate);
         if (success) {
           connection.setSelectedPort(port);
+          // On initial successful connect:
+          // 1) Reset sync state so UI remains conservative.
+          // 2) Lock action buttons to prevent any actions until the
+          //    arm reports its positions back (via M114).
+          // 3) Trigger an immediate auto-sync. `ControlPanel` and
+          //    `CommandPanel` listen for `autoSyncTrigger` and will
+          //    issue the `M114` command to query positions.
+          // The digital twin should never assume the arm is already in a
+          // known pose after connect, so it waits for the first report.
+          setHasSynced(false);
+          setAreActionButtonsLocked(true);
+          setAutoSyncTrigger((c) => c + 1);
+          console.log("Auto-sync triggered on connect");
         }
       }
     } catch (err) {
@@ -101,7 +124,6 @@ function DigitalTwinView({ activeSection = 'control', onSectionChange = () => { 
       clearTimeout(torqueUnlockTimerRef.current);
       torqueUnlockTimerRef.current = null;
     }
-
     setAreActionButtonsLocked(true);
   };
 
@@ -110,10 +132,12 @@ function DigitalTwinView({ activeSection = 'control', onSectionChange = () => { 
       clearTimeout(torqueUnlockTimerRef.current);
     }
 
+    // Torque-on is treated like a state reset: hold buttons briefly,
+    // then auto-sync so the UI can safely reflect the arm again.
     setAreActionButtonsLocked(true);
     torqueUnlockTimerRef.current = setTimeout(() => {
       setAreActionButtonsLocked(false);
-      setTorqueAutoSyncTrigger((current) => current + 1);
+      setAutoSyncTrigger((current) => current + 1);
       torqueUnlockTimerRef.current = null;
     }, 500);
   };
@@ -140,26 +164,47 @@ function DigitalTwinView({ activeSection = 'control', onSectionChange = () => { 
       return;
     }
 
-    const ok = await connection.sendCommandWithTimeout('M18\n');
-    if (!ok) {
-      return;
-    }
-
+    // Immediately mark torque disabled locally so running programs
+    // observe the change and abort as soon as possible. If the
+    // command fails we roll the state back.
     setIsTorqueEnabled(false);
     setHasSynced(false);
     lockActionButtons();
+
+    const ok = await connection.sendCommandWithTimeout('M18\n');
+    if (!ok) {
+      // rollback optimistic update
+      setIsTorqueEnabled(true);
+      connection.setError('Failed to disable torque on the device.');
+      return;
+    }
   };
 
+  // Global Space key handler: trigger torque-off when Space is pressed.
   useEffect(() => {
-    if (!connection) return;
-    let t = null;
-    if (connection.isConnected) {
-      t = setTimeout(() => setAutoSyncTrigger((c) => c + 1), 7000);
-    }
-    return () => {
-      if (t) clearTimeout(t);
+    const onKeyDown = (e) => {
+      if (e.code !== 'Space') return;
+      if (!connection?.isConnected) return;
+      if (!isTorqueEnabled) return;
+      if (areActionButtonsLocked) return;
+      e.preventDefault();
+      handleTorqueOff();
     };
-  }, [connection && connection.isConnected]);
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [connection && connection.isConnected, isTorqueEnabled, areActionButtonsLocked]);
+
+  // useEffect(() => {
+  //   if (!connection) return;
+  //   let t = null;
+  //   if (connection.isConnected) {
+  //     t = setTimeout(() => setAutoSyncTrigger((c) => c + 1), 7000);
+  //   }
+  //   return () => {
+  //     if (t) clearTimeout(t);
+  //   };
+  // }, [connection && connection.isConnected]);
 
   useEffect(() => {
     if (!connection.error) {
@@ -192,6 +237,13 @@ function DigitalTwinView({ activeSection = 'control', onSectionChange = () => { 
       }
     };
   }, [connection.error]);
+
+  // When a successful sync occurs, allow action buttons again
+  useEffect(() => {
+    if (hasSynced) {
+      setAreActionButtonsLocked(false);
+    }
+  }, [hasSynced]);
 
   const handleMouseDown = () => {
     isDraggingRef.current = true;
@@ -233,10 +285,13 @@ function DigitalTwinView({ activeSection = 'control', onSectionChange = () => { 
   };
 
   const buildSendCommandForJoints = () => {
+    // Shared joint command used by the control and pose panels.
     return `G1 J1:${angleToSteps(jointTargets.J1)} J2:${angleToSteps(jointTargets.J2)} J3:${angleToSteps(jointTargets.J3)} J4:${angleToSteps(jointTargets.J4)} J5:${angleToSteps(jointTargets.J5)} F${feedrate}\n`;
   };
 
   const getCommandPanelProps = () => {
+    // The footer panel is reused, but each section supplies a different
+    // send action: direct joint move, pose move, or program playback.
     switch (activeSection) {
       case 'control':
         return {
@@ -244,7 +299,7 @@ function DigitalTwinView({ activeSection = 'control', onSectionChange = () => { 
           isTorqueEnabled,
           isActionButtonsLocked: areActionButtonsLocked,
           hasSynced,
-          autoSyncTrigger: torqueAutoSyncTrigger,
+          autoSyncTrigger: autoSyncTrigger,
           feedrate,
           onFeedrateChange: handleFeedrateChange,
           marks: speedMarks,
@@ -264,7 +319,7 @@ function DigitalTwinView({ activeSection = 'control', onSectionChange = () => { 
           isTorqueEnabled,
           isActionButtonsLocked: areActionButtonsLocked,
           hasSynced,
-          autoSyncTrigger: torqueAutoSyncTrigger,
+          autoSyncTrigger: autoSyncTrigger,
           feedrate,
           onFeedrateChange: handleFeedrateChange,
           marks: speedMarks,
@@ -278,17 +333,20 @@ function DigitalTwinView({ activeSection = 'control', onSectionChange = () => { 
           isTorqueEnabled,
           isActionButtonsLocked: areActionButtonsLocked,
           hasSynced,
-          autoSyncTrigger: torqueAutoSyncTrigger,
+          autoSyncTrigger: autoSyncTrigger,
           feedrate,
           onFeedrateChange: handleFeedrateChange,
           marks: speedMarks,
-          showSpeedSlider: true,
+          showSpeedSlider: !isLinearInterpolationEnabled,
           onSendAction: () => {
-            if (programmingRef.current && typeof programmingRef.current.runProgram === 'function') {
-              programmingRef.current.runProgram();
+            // The footer Send button should trigger the actual program send
+            // (serial I/O). The preview/play button is handled inside the
+            // program component and only updates the visualization.
+            if (programmingRef.current && typeof programmingRef.current.sendProgram === 'function') {
+              programmingRef.current.sendProgram();
             }
           },
-          sendLabel: 'Send Program',
+          sendLabel: programButtonLabel,
         };
       default:
         return {
@@ -296,7 +354,7 @@ function DigitalTwinView({ activeSection = 'control', onSectionChange = () => { 
           isTorqueEnabled,
           isActionButtonsLocked: areActionButtonsLocked,
           hasSynced,
-          autoSyncTrigger: torqueAutoSyncTrigger,
+          autoSyncTrigger: autoSyncTrigger,
           feedrate,
           onFeedrateChange: handleFeedrateChange,
           marks: speedMarks,
@@ -386,7 +444,7 @@ function DigitalTwinView({ activeSection = 'control', onSectionChange = () => { 
                   size="large"
                   color="primary"
                   aria-label="home"
-                  disabled={!connection.isConnected || !isTorqueEnabled || areActionButtonsLocked}
+                  disabled={!connection.isConnected || !isTorqueEnabled || areActionButtonsLocked || !hasSynced}
                 >
                   <HomeIcon />
                 </IconButton>
@@ -397,7 +455,7 @@ function DigitalTwinView({ activeSection = 'control', onSectionChange = () => { 
                   size="large"
                   color="primary"
                   aria-label="power-on"
-                  disabled={!connection.isConnected || areActionButtonsLocked}
+                  disabled={!connection.isConnected}
                 >
                   <PowerIcon />
                 </IconButton>
@@ -407,7 +465,7 @@ function DigitalTwinView({ activeSection = 'control', onSectionChange = () => { 
                   onClick={handleTorqueOff}
                   size="large"
                   aria-label="power-off"
-                  disabled={!connection.isConnected || !isTorqueEnabled || areActionButtonsLocked}
+                  disabled={!connection.isConnected || !isTorqueEnabled || areActionButtonsLocked || !hasSynced}
                   sx={{ color: '#f44336' }}
                 >
                   <PowerOffIcon />
@@ -506,20 +564,40 @@ function DigitalTwinView({ activeSection = 'control', onSectionChange = () => { 
               jointTargets={jointTargets}
               setJointTargets={setJointTargets}
               connection={connection}
-              autoSyncTrigger={autoSyncTrigger}
               feedrate={feedrate}
               setFeedrate={setFeedrate}
               hasSynced={hasSynced}
               setHasSynced={setHasSynced}
               isTorqueEnabled={isTorqueEnabled}
               setIsTorqueEnabled={setIsTorqueEnabled}
+              isSyncing={isSyncing}
+              setIsSyncing={setIsSyncing}
             />
           </Box>
           <Box sx={{ display: activeSection === 'pose' ? 'block' : 'none', height: '100%' }}>
-            <PoseControl ref={poseControlRef} jointTargets={jointTargets} setJointTargets={setJointTargets} connection={connection} onPlanChange={(plan) => setInterpolationPlan(plan || [])} />
+            <PoseControl
+              ref={poseControlRef}
+              jointTargets={jointTargets}
+              setJointTargets={setJointTargets}
+              connection={connection}
+              isTorqueEnabled={isTorqueEnabled}
+              onPlanChange={(plan) => setInterpolationPlan(plan || [])}
+            />
           </Box>
           <Box sx={{ display: activeSection === 'programming' ? 'block' : 'none', height: '100%' }}>
-            <Programming ref={programmingRef} jointTargets={jointTargets} setJointTargets={setJointTargets} connection={connection} controlsDisabled={!isTorqueEnabled || areActionButtonsLocked || !hasSynced} onPlanChange={(plan) => setInterpolationPlan(plan || [])} />
+            <Programming
+              ref={programmingRef}
+              jointTargets={jointTargets}
+              setJointTargets={setJointTargets}
+              connection={connection}
+              isTorqueEnabled={isTorqueEnabled}
+              controlsDisabled={areActionButtonsLocked || !hasSynced}
+              onPlanChange={(plan, fallback, isInterpolationEnabled) => {
+                setInterpolationPlan(plan || []);
+                setIsLinearInterpolationEnabled(!!isInterpolationEnabled);
+              }}
+              setProgramButtonLabel={setProgramButtonLabel}
+            />
           </Box>
           <Box sx={{ display: activeSection === 'settings' ? 'block' : 'none', height: '100%' }}>
             <Settings />
@@ -529,6 +607,8 @@ function DigitalTwinView({ activeSection = 'control', onSectionChange = () => { 
         {/* Unified Command Panel */}
         <CommandPanel
           {...getCommandPanelProps()}
+          isSyncing={isSyncing}
+          setIsSyncing={setIsSyncing}
           showErrorAlert={showErrorAlert}
           error={connection.error}
         />

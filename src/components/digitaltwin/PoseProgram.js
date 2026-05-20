@@ -34,24 +34,43 @@ const FEEDRATE_MIN = 10;
 const FEEDRATE_MAX = 1000;
 const SPEED_OPTIONS = [100, 300, 500, 700, 900];
 const INTERP_STEPS_MIN = 1;
-const INTERP_STEPS_MAX = 100;
+const INTERP_STEPS_MAX = 300;
 const INTERP_STEPS_DEFAULT = 20;
-const MIN_STEP_DELAY_MS = 33; // ~30fps for smooth animation visualization
+const FPS_MIN = 1;
+const FPS_MAX = 120;
+const FPS_DEFAULT = 25;
+const MIN_STEP_DELAY_MS = 40; // ~30fps for smooth animation visualization
 const clampFeedrate = (value) => Math.max(FEEDRATE_MIN, Math.min(FEEDRATE_MAX, value));
 const angleToSteps = (deg) => Math.round(Math.max(0, Math.min(STEP_MAX, deg / DEG_PER_STEP)));
 const clampInterpolationSteps = (value) => Math.max(INTERP_STEPS_MIN, Math.min(INTERP_STEPS_MAX, value));
+const clampFps = (value) => Math.max(FPS_MIN, Math.min(FPS_MAX, value));
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const ProgramInner = forwardRef(function PoseProgram({ currentPos, jointTargets, feedrate, setJointTargets, setFeedrate, connection, onError, hideRunButton = false, controlsDisabled = false, onPlanChange = null }, ref) {
+const ProgramInner = forwardRef(function PoseProgram({
+	currentPos,
+	jointTargets,
+	feedrate,
+	setJointTargets,
+	setFeedrate,
+	connection,
+	isTorqueEnabled = true,
+	onError,
+	hideRunButton = false,
+	controlsDisabled = false,
+	onPlanChange = null,
+	setProgramButtonLabel,
+}, ref) {
 	const [frames, setFrames] = useState([]);
 	const [isRunning, setIsRunning] = useState(false);
 	const [useLinearInterpolation, setUseLinearInterpolation] = useState(false);
 	const [interpolationSteps, setInterpolationSteps] = useState(INTERP_STEPS_DEFAULT);
+	const [fps, setFps] = useState(FPS_DEFAULT);
 	const [savedInterpolation, setSavedInterpolation] = useState([]);
 	const [cartesianFallback, setCartesianFallback] = useState(false);
 	const [currentStepIndex, setCurrentStepIndex] = useState(0);
 	const isPlayingRef = useRef(false);
+	const lastG0TimeRef = useRef(null);
 
 	const togglePlayPause = () => {
 		if (isRunning) {
@@ -167,40 +186,40 @@ const ProgramInner = forwardRef(function PoseProgram({ currentPos, jointTargets,
 							cursor: editing ? 'default' : 'pointer',
 						}}
 					>
-					{editing ? (
-						<Stack direction="row" spacing={0.5} alignItems="center">
-							<TextField
-								size="small"
-								type="number"
-								value={value}
-								onChange={(e) => setValue(Math.max(0, parseInt(e.target.value || 0, 10)))}
-								inputProps={{ min: 0 }}
-								sx={{ width: 64 }}
-							/>
-							<IconButton size="small" color="primary" onClick={save} aria-label="save-delay">
-								<CheckIcon fontSize="small" />
-							</IconButton>
-							<IconButton color="secondary"size="small" onClick={() => { setValue(from?.delayMs || 0); setEditing(false); }} aria-label="cancel-delay">
-								<CloseIcon fontSize="small" />
-							</IconButton>
-							<IconButton color="error" size="small" onClick={(e) => { e.stopPropagation(); updateFrameDelay(from.id, 0); setEditing(false); }} aria-label="delete-delay">
-								<DeleteOutlineIcon fontSize="small" />
-							</IconButton>
-						</Stack>
-					) : (
-						<Stack direction="row" spacing={0.5} alignItems="center" sx={{ width: '100%', justifyContent: 'center' }}>
-							{value > 0 ? (
-								<Typography variant="caption" sx={{ fontWeight: 600, color: '#ff6f00' }}>
-									⏱ {value}ms
-								</Typography>
-							) : (
-								<Stack direction="row" alignItems="center" spacing={0.5}>
-									<AddIcon fontSize="small" />
-									<Typography variant="caption" sx={{ fontWeight: 500 }}>Add delay</Typography>
-								</Stack>
-							)}
-						</Stack>
-					)}
+						{editing ? (
+							<Stack direction="row" spacing={0.5} alignItems="center">
+								<TextField
+									size="small"
+									type="number"
+									value={value}
+									onChange={(e) => setValue(Math.max(0, parseInt(e.target.value || 0, 10)))}
+									inputProps={{ min: 0 }}
+									sx={{ width: 64 }}
+								/>
+								<IconButton size="small" color="primary" onClick={save} aria-label="save-delay">
+									<CheckIcon fontSize="small" />
+								</IconButton>
+								<IconButton color="secondary" size="small" onClick={() => { setValue(from?.delayMs || 0); setEditing(false); }} aria-label="cancel-delay">
+									<CloseIcon fontSize="small" />
+								</IconButton>
+								<IconButton color="error" size="small" onClick={(e) => { e.stopPropagation(); updateFrameDelay(from.id, 0); setEditing(false); }} aria-label="delete-delay">
+									<DeleteOutlineIcon fontSize="small" />
+								</IconButton>
+							</Stack>
+						) : (
+							<Stack direction="row" spacing={0.5} alignItems="center" sx={{ width: '100%', justifyContent: 'center' }}>
+								{value > 0 ? (
+									<Typography variant="caption" sx={{ fontWeight: 600, color: '#ff6f00' }}>
+										⏱ {value}ms
+									</Typography>
+								) : (
+									<Stack direction="row" alignItems="center" spacing={0.5}>
+										<AddIcon fontSize="small" />
+										<Typography variant="caption" sx={{ fontWeight: 500 }}>Add delay</Typography>
+									</Stack>
+								)}
+							</Stack>
+						)}
 					</Paper>
 				) : (
 					<Box sx={{ width: '100%', height: 8 }} />
@@ -256,21 +275,60 @@ const ProgramInner = forwardRef(function PoseProgram({ currentPos, jointTargets,
 		setSavedInterpolation(result.plan || []);
 		setCartesianFallback(Boolean(result.cartesianFallback));
 		if (typeof onPlanChange === 'function') {
-			onPlanChange(result.plan || [], Boolean(result.cartesianFallback));
+			onPlanChange(result.plan || [], Boolean(result.cartesianFallback), useLinearInterpolation);
 		}
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [frames, useLinearInterpolation, interpolationSteps]);
 
-	const applyPoseStep = async (joints, frameFeedrate) => {
-		setJointTargets({ ...joints });
-		setFeedrate(clampFeedrate(parseInt(frameFeedrate, 10) || FEEDRATE_MIN));
+	const applyPoseStep = async (joints, frameFeedrate, { skipVisualUpdate = false, actuallySend = false } = {}) => {
+		if (!skipVisualUpdate) {
+			setJointTargets({ ...joints });
+			if (!useLinearInterpolation) {
+				setFeedrate(clampFeedrate(parseInt(frameFeedrate, 10) || FEEDRATE_MIN));
+			}
+		}
 
-		const command = `G1 J1:${angleToSteps(joints.J1)} J2:${angleToSteps(joints.J2)} J3:${angleToSteps(joints.J3)} J4:${angleToSteps(joints.J4)} J5:${angleToSteps(joints.J5)} F${clampFeedrate(frameFeedrate)}\n`;
-		// console.log('[PoseProgram] Sending serial command:', command.trim());
-		if (connection?.isConnected) {
-			const ok = await connection.sendCommandWithTimeout(command);
-			if (!ok) {
-				throw new Error('No OK received during interpolated move.');
+		const j1 = angleToSteps(joints.J1);
+		const j2 = angleToSteps(joints.J2);
+		const j3 = angleToSteps(joints.J3);
+		const j4 = angleToSteps(joints.J4);
+		const j5 = angleToSteps(joints.J5);
+
+		// `G0` is the fast path used by linear interpolation, so it keeps
+		// the command compact and avoids waiting for an OK between frames.
+		// `G1` is the explicit path used for normal playback, where the
+		// firmware receives a full joint list plus feedrate.
+		const command = useLinearInterpolation
+			? `G0 ${j1},${j2},${j3},${j4},${j5}\n`
+			: `G1 J1:${j1} J2:${j2} J3:${j3} J4:${j4} J5:${j5} F${clampFeedrate(frameFeedrate)}\n`;
+
+		if (useLinearInterpolation) {
+			const now = Date.now();
+			const diff = lastG0TimeRef.current ? now - lastG0TimeRef.current : 0;
+			lastG0TimeRef.current = now;
+			console.log(`${command.trim()} @ +${diff}ms (target: ${frameDelayMs}ms)`);
+		} else {
+			console.log(command);
+		}
+		// If sends are requested (real hardware run), perform them.
+		// For preview/playback in the UI we skip any serial I/O so the
+		// user can freely preview frames even when torque is off.
+		if (actuallySend) {
+			if (!isTorqueEnabled) {
+				throw new Error('Torque disabled during program playback.');
+			}
+
+			if (connection?.isConnected) {
+				if (useLinearInterpolation) {
+					await connection.sendRaw(command);
+				} else {
+					const ok = await connection.sendCommandWithTimeout(command);
+					if (!ok) {
+						throw new Error('No OK received during interpolated move.');
+					}
+				}
+			} else {
+				throw new Error('No serial connection available to send program.');
 			}
 		}
 	};
@@ -283,6 +341,9 @@ const ProgramInner = forwardRef(function PoseProgram({ currentPos, jointTargets,
 	};
 
 	const runProgram = async () => {
+		// Preview-only run: update the digital twin visualization frame-by-frame
+		// but do not perform any serial I/O. This allows users to preview and
+		// tweak programs even when torque is off or no connection is present.
 		if (!hasFrames) {
 			onError('Add at least one timeframe to run the pose program.');
 			return;
@@ -290,6 +351,10 @@ const ProgramInner = forwardRef(function PoseProgram({ currentPos, jointTargets,
 
 		setIsRunning(true);
 		isPlayingRef.current = true;
+		lastG0TimeRef.current = null;
+		if (typeof setProgramButtonLabel === 'function') {
+			setProgramButtonLabel('Previewing...');
+		}
 		try {
 			let playbackPlan = savedInterpolation;
 			if (!playbackPlan.length) {
@@ -297,26 +362,169 @@ const ProgramInner = forwardRef(function PoseProgram({ currentPos, jointTargets,
 				playbackPlan = result.plan || [];
 			}
 
+			if (playbackPlan.length > 0) {
+				const firstStep = playbackPlan[0];
+				setCurrentStepIndex(0);
+				setJointTargets({ ...firstStep.joints });
+				setFeedrate(300);
+				// small pause to allow UI to update
+				await wait(200);
+			}
+
 			const startIdx = currentStepIndex >= playbackPlan.length - 1 ? 0 : currentStepIndex;
+			const isRapidMode = useLinearInterpolation;
+
+			let lastExecutedStep = null;
+			for (let index = startIdx; index < playbackPlan.length; index += 1) {
+				if (!isPlayingRef.current) break;
+
+				const step = playbackPlan[index];
+
+				if (isRapidMode) {
+					await applyPoseStep(step.joints, step.feedrate, { skipVisualUpdate: true, actuallySend: false });
+					lastExecutedStep = step;
+				} else {
+					setCurrentStepIndex(index);
+					await applyPoseStep(step.joints, step.feedrate, { actuallySend: false });
+				}
+
+				if (isRapidMode) {
+					if (index < playbackPlan.length - 1) {
+						await wait(frameDelayMs);
+					}
+				} else {
+					const stepDelay = Math.max(MIN_STEP_DELAY_MS, step.delayMs || 0);
+					if (stepDelay > 0 && index < playbackPlan.length - 1) {
+						await wait(stepDelay);
+					}
+				}
+			}
+
+			if (isRapidMode && lastExecutedStep) {
+				setJointTargets({ ...lastExecutedStep.joints });
+				setCurrentStepIndex(playbackPlan.length - 1);
+			}
+		} catch (err) {
+			setCurrentStepIndex(0);
+			onError(err.message || 'Pose program preview failed.');
+		} finally {
+			setIsRunning(false);
+			isPlayingRef.current = false;
+			if (typeof setProgramButtonLabel === 'function') {
+				setProgramButtonLabel('Send Program');
+			}
+		}
+	};
+
+	// Real send: performs serial I/O and enforces torque/connection checks.
+	const sendProgram = async () => {
+		if (!hasFrames) {
+			onError('Add at least one timeframe to run the pose program.');
+			return;
+		}
+
+		if (!isTorqueEnabled) {
+			onError('Turn torque on before sending the program to the arm.');
+			return;
+		}
+
+		if (!connection?.isConnected) {
+			onError('Connect to a serial port before sending the program.');
+			return;
+		}
+
+		setIsRunning(true);
+		isPlayingRef.current = true;
+		lastG0TimeRef.current = null;
+		if (typeof setProgramButtonLabel === 'function') {
+			setProgramButtonLabel('Running...');
+		}
+
+		try {
+			let playbackPlan = savedInterpolation;
+			if (!playbackPlan.length) {
+				const result = buildPlaybackPlan();
+				playbackPlan = result.plan || [];
+			}
+
+			if (playbackPlan.length > 0) {
+				const firstStep = playbackPlan[0];
+				setCurrentStepIndex(0);
+				setJointTargets({ ...firstStep.joints });
+				setFeedrate(300);
+
+				// Move to initial programmed pose on the real arm and wait for 'Complete'.
+				const j1 = angleToSteps(firstStep.joints.J1);
+				const j2 = angleToSteps(firstStep.joints.J2);
+				const j3 = angleToSteps(firstStep.joints.J3);
+				const j4 = angleToSteps(firstStep.joints.J4);
+				const j5 = angleToSteps(firstStep.joints.J5);
+				const initialCommand = `G1 J1:${j1} J2:${j2} J3:${j3} J4:${j4} J5:${j5} F300\n`;
+
+				const ok = await connection.sendCommandWithTimeout(initialCommand);
+				if (!ok) {
+					throw new Error('Failed to send move to initial position command.');
+				}
+
+				await new Promise((resolve, reject) => {
+					let buffer = '';
+					const unsubscribe = connection.subscribe((text) => {
+						buffer += text;
+						if (buffer.includes('Complete')) {
+							unsubscribe();
+							clearTimeout(timeoutId);
+							resolve();
+						}
+					});
+					const timeoutId = setTimeout(() => {
+						unsubscribe();
+						reject(new Error('Timeout waiting for "Complete" response from robot arm (10s).'));
+					}, 10000);
+				});
+			}
+
+			const startIdx = currentStepIndex >= playbackPlan.length - 1 ? 0 : currentStepIndex;
+			const isRapidMode = useLinearInterpolation;
+			let lastExecutedStep = null;
 
 			for (let index = startIdx; index < playbackPlan.length; index += 1) {
 				if (!isPlayingRef.current) break;
 
-				setCurrentStepIndex(index);
 				const step = playbackPlan[index];
-				await applyPoseStep(step.joints, step.feedrate);
 
-				// Use minimum step delay for animation visualization, or explicit delay if larger
-				const stepDelay = Math.max(MIN_STEP_DELAY_MS, step.delayMs || 0);
-				if (stepDelay > 0 && index < playbackPlan.length - 1) {
-					await wait(stepDelay);
+				if (isRapidMode) {
+					await applyPoseStep(step.joints, step.feedrate, { skipVisualUpdate: true, actuallySend: true });
+					lastExecutedStep = step;
+				} else {
+					setCurrentStepIndex(index);
+					await applyPoseStep(step.joints, step.feedrate, { actuallySend: true });
+				}
+
+				if (isRapidMode) {
+					if (index < playbackPlan.length - 1) {
+						await wait(frameDelayMs);
+					}
+				} else {
+					const stepDelay = Math.max(MIN_STEP_DELAY_MS, step.delayMs || 0);
+					if (stepDelay > 0 && index < playbackPlan.length - 1) {
+						await wait(stepDelay);
+					}
 				}
 			}
+
+			if (isRapidMode && lastExecutedStep) {
+				setJointTargets({ ...lastExecutedStep.joints });
+				setCurrentStepIndex(playbackPlan.length - 1);
+			}
 		} catch (err) {
+			setCurrentStepIndex(0);
 			onError(err.message || 'Pose program failed to run.');
 		} finally {
 			setIsRunning(false);
 			isPlayingRef.current = false;
+			if (typeof setProgramButtonLabel === 'function') {
+				setProgramButtonLabel('Send Program');
+			}
 		}
 	};
 
@@ -324,14 +532,23 @@ const ProgramInner = forwardRef(function PoseProgram({ currentPos, jointTargets,
 	useImperativeHandle(ref, () => ({
 		addFrame: handleAddFrame,
 		runProgram,
+		sendProgram,
 		getSavedInterpolation: () => savedInterpolation,
 		setCurrentStepIndex: (idx) => setCurrentStepIndex(idx),
-	}), [handleAddFrame, hasFrames, savedInterpolation]);
+	}), [handleAddFrame, hasFrames, savedInterpolation, runProgram, sendProgram]);
 
 	const handleInterpolationStepsChange = (value) => {
 		const numeric = clampInterpolationSteps(parseInt(value, 10) || INTERP_STEPS_MIN);
 		setInterpolationSteps(numeric);
 	};
+
+	const handleFpsChange = (value) => {
+		const numeric = clampFps(parseInt(value, 10) || FPS_DEFAULT);
+		setFps(numeric);
+	};
+
+	// Computed delay per frame in ms based on FPS
+	const frameDelayMs = useMemo(() => Math.round(1000 / fps), [fps]);
 
 	return (
 		<Paper sx={{ p: 2 }}>
@@ -376,23 +593,65 @@ const ProgramInner = forwardRef(function PoseProgram({ currentPos, jointTargets,
 							value={interpolationSteps}
 							onChange={(e) => handleInterpolationStepsChange(e.target.value)}
 							inputProps={{ min: INTERP_STEPS_MIN, max: INTERP_STEPS_MAX, step: 1 }}
-							// sx={{ width: 220 }}
-								disabled={isInteractionLocked}
+							disabled={isInteractionLocked}
+						/>
+					)}
+					{useLinearInterpolation && (
+						<TextField
+							size="small"
+							type="number"
+							label="fps"
+							value={fps}
+							onChange={(e) => handleFpsChange(e.target.value)}
+							inputProps={{ min: FPS_MIN, max: FPS_MAX, step: 1 }}
+							disabled={isInteractionLocked}
 						/>
 					)}
 				</Stack>
-
+				{useLinearInterpolation && savedInterpolation.length > 0 && (
+					<Typography variant="caption" color="text.secondary" sx={{ mt: -0.5 }}>
+						{savedInterpolation.length} frames @ {fps} fps → {frameDelayMs}ms delay per frame ({(savedInterpolation.length * frameDelayMs / 1000).toFixed(2)}s total)
+					</Typography>
+				)}
 				{frames.map((frame, index) => (
 					<div key={`frame-wrap-${frame.id}`}>
 						<Box
 							key={frame.id}
-							sx={{ border: '1px solid #e0e0e0', borderRadius: 1.2, p: 1.25, backgroundColor: '#fcfcfc' }}
+							sx={{ border: '1px solid #e0e0e0', borderRadius: 1.2, p: 1, backgroundColor: '#fcfcfc' }}
 						>
-							<Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-								<Typography variant="body2" sx={{ fontWeight: 600 }}>
+							<Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'nowrap', gap: 1 }}>
+								<Typography variant="body2" sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
 									#{index + 1} {frame.name}
 								</Typography>
-								<Stack direction="row" spacing={0.25}>
+								<Stack direction="row" spacing={0.5} alignItems="center" sx={{ ml: 'auto' }}>
+									<TextField
+										select
+										size="small"
+										value={frame.feedrate}
+										onChange={(e) => updateFrameSpeed(frame.id, e.target.value)}
+										sx={{
+											width: 85,
+											'& .MuiInputBase-input': { py: '4px', px: '8px', fontSize: '12px' }
+										}}
+										disabled={isInteractionLocked || useLinearInterpolation}
+									>
+										{SPEED_OPTIONS.map((speedValue) => (
+											<MenuItem key={speedValue} value={speedValue} sx={{ fontSize: '12px' }}>
+												F{speedValue}
+											</MenuItem>
+										))}
+									</TextField>
+									<Button
+										size="small"
+										variant="text"
+										startIcon={<SaveAltIcon />}
+										onClick={() => loadFrameToPose(frame)}
+										disabled={isInteractionLocked}
+										sx={{ minWidth: 'auto', px: 1, py: '4px', fontSize: '12px', textTransform: 'none' }}
+									>
+										Load
+									</Button>
+									<Divider orientation="vertical" flexItem sx={{ mx: 0.5, my: 0.5 }} />
 									<IconButton
 										size="small"
 										onClick={() => moveFrame(index, -1)}
@@ -407,40 +666,16 @@ const ProgramInner = forwardRef(function PoseProgram({ currentPos, jointTargets,
 									>
 										<ArrowDownwardIcon fontSize="small" />
 									</IconButton>
-									<IconButton size="small" onClick={() => removeFrame(frame.id)} disabled={isInteractionLocked}>
+									<IconButton
+										size="small"
+										onClick={() => removeFrame(frame.id)}
+										disabled={isInteractionLocked}
+										color="error"
+									>
 										<DeleteOutlineIcon fontSize="small" />
 									</IconButton>
 								</Stack>
 							</Box>
-
-							<Divider sx={{ my: 1 }} />
-
-							<Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-								<TextField
-									select
-									size="small"
-									label="Speed (F)"
-									value={frame.feedrate}
-									onChange={(e) => updateFrameSpeed(frame.id, e.target.value)}
-									sx={{ width: 120 }}
-									disabled={isInteractionLocked}
-								>
-									{SPEED_OPTIONS.map((speedValue) => (
-										<MenuItem key={speedValue} value={speedValue}>
-											F{speedValue}
-										</MenuItem>
-									))}
-								</TextField>
-								<Button
-									size="small"
-									variant="text"
-									startIcon={<SaveAltIcon />}
-									onClick={() => loadFrameToPose(frame)}
-									disabled={isInteractionLocked}
-								>
-									Load
-								</Button>
-							</Stack>
 						</Box>
 						{index < frames.length - 1 && <GapEditor from={frame} />}
 					</div>
@@ -463,14 +698,13 @@ const ProgramInner = forwardRef(function PoseProgram({ currentPos, jointTargets,
 						})}
 					>
 						<Slider
-							valueLabelDisplay="on"
 							marks
 							value={currentStepIndex}
 							min={0}
 							max={Math.max(0, savedInterpolation.length - 1)}
 							step={1}
 							onChange={handleSliderChange}
-								disabled={isInteractionLocked || savedInterpolation.length <= 1}
+							disabled={isInteractionLocked || savedInterpolation.length <= 1}
 							valueLabelDisplay="auto"
 							valueLabelFormat={(val) => `${val + 1} / ${savedInterpolation.length}`}
 							sx={{ flex: 1, ml: 1, mr: 2 }}

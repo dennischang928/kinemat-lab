@@ -105,7 +105,7 @@ const createInitialJointGuess = (targetMatrix, options = {}) => {
 	const c234 = -(r13 * c1 + r23 * s1);
 	const s234 = clamp(r33, -1, 1);
 	const q234 = Math.atan2(s234, c234);
-	const q5 = Math.abs(c234) > EPSILON ? Math.atan2(-r32, r31) : preferredQ5;
+	const q5 = preferredQ5;
 
 	const wristPlanar = radial - WRIST * Math.sin(q234);
 	const wristVertical = z - BASE_HEIGHT - WRIST * Math.cos(q234);
@@ -195,11 +195,13 @@ const jointDistance = (a, b) => {
 const solveFromSeed = (seed, targetMatrix, poseMask, stepSize, damping, maxIterations, tolerance) => {
 	const joints = [...seed];
 	const activeRows = activePoseRows(poseMask);
+	console.log("activeRows", activeRows);
 
 	// Initial FK evaluation
 	let fkArgs = { q1: joints[0], q2: joints[1], q3: joints[2], q4: joints[3], q5: joints[4] };
 	let currentMatrix = calculateForwardKinematicsMatrix(fkArgs);
 	let currentPoseError = matrixPoseError(currentMatrix, targetMatrix);
+	console.log("targetMatrix", targetMatrix, "initialPoseError", currentPoseError);
 	let currentErrorNorm = vectorNorm(activeRows.map((rowIndex) => currentPoseError[rowIndex]));
 
 	const seedErrorNorm = currentErrorNorm;
@@ -248,6 +250,7 @@ const solveFromSeed = (seed, targetMatrix, poseMask, stepSize, damping, maxItera
 		if (vectorNorm(delta) <= tolerance) {
 			if (currentErrorNorm <= tolerance) {
 				converged = true;
+				console.log("solution found:", currentMatrix)
 			}
 			break;
 		}
@@ -293,7 +296,7 @@ export const calculateInverseKinematicsMatrix = (targetMatrix, options = {}) => 
 		initialGuess = null,
 		optimizeToGuess = null,
 		maxIterations = 20,
-		tolerance = 1e-4,
+		tolerance = 1e-5,
 		damping = 1e-2,
 		stepSize = 1e-4,
 	} = options;

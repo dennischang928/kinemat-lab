@@ -13,7 +13,7 @@ function Settings() {
     }
 
     return {
-      autoReconnect: true,
+      autoReconnect: false,
       logOutput: false,
     };
   });

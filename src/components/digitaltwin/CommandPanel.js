@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import { Box, Paper, Stack, Typography, Slider, Button, Fade, Alert } from '@mui/material';
 import SyncIcon from '@mui/icons-material/Sync';
 import SendIcon from '@mui/icons-material/Send';
@@ -18,12 +18,19 @@ export default function CommandPanel({
   sendLabel = 'Send',
   showErrorAlert = false,
   error = null,
+  // lifted syncing state from parent
+  isSyncing = false,
+  setIsSyncing = () => {},
 }) {
-  const [isSyncing, setIsSyncing] = useState(false);
+  const SYNC_RETRY_MS = 500;
+  const SYNC_TIMEOUT_MS = 7000;
 
   useEffect(() => {
     if (!autoSyncTrigger) return;
     if (!connection.isConnected) return;
+    // Parent triggered an auto-sync (e.g. after connect or torque-on).
+    // `handleSync` issues `M114` and `ControlPanel` parses the returned
+    // position report to mark the UI as synced.
     handleSync();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoSyncTrigger]);
@@ -39,14 +46,26 @@ export default function CommandPanel({
       return;
     }
 
+    // Mark UI as syncing while we wait for the arm to reply. The
+    // read loop (subscribers) is responsible for parsing the reply
+    // and calling `setHasSynced(true)` in `ControlPanel`.
     setIsSyncing(true);
     try {
-      const ok = await connection.sendCommandWithTimeout('M114\n');
-      if (!ok) {
-        connection.setError('No OK received from arm.');
+      const startedAt = Date.now();
+      while (Date.now() - startedAt < SYNC_TIMEOUT_MS) {
+        console.log('Attempting to sync...');
+        const ok = await connection.sendCommandWithTimeout('M114\n', { timeout: SYNC_RETRY_MS });
+        if (ok) {
+          return;
+        }
       }
-    } finally {
+
+      connection.setError('Oh no, command not received.');
       setIsSyncing(false);
+    } catch (e) {
+      // Ensure syncing state is cleared on unexpected errors
+      setIsSyncing(false);
+      throw e;
     }
   };
 
@@ -56,13 +75,14 @@ export default function CommandPanel({
       return;
     }
 
-    // If onSendAction provided (e.g., for program), call it instead of serial send
+    // Program mode injects its own action here, so the footer can still
+    // use the same button while the actual behavior changes by section.
     if (onSendAction) {
       onSendAction();
       return;
     }
 
-    // Otherwise, build and send serial command
+    // Otherwise build the section-specific G-code/command string and send it.
     if (!buildSendCommand) {
       connection.setError('No send action configured.');
       return;
@@ -85,6 +105,12 @@ export default function CommandPanel({
     }
   };
 
+  // Disable sending when:
+  // - no serial connection
+  // - torque is off
+  // - actions are explicitly locked (e.g., while connecting or after torque change)
+  // - we haven't synced (no position report received yet)
+  // - and there is no configured send action
   const sendDisabled = !connection.isConnected || !isTorqueEnabled || isActionButtonsLocked || !hasSynced || (!buildSendCommand && !onSendAction);
 
   return (
