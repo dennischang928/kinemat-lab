@@ -28,7 +28,7 @@ const PoseControl = forwardRef(function PoseControl({
   connection,
   isTorqueEnabled = true,
   onPlanChange = null,
-  kinematicMask = { x: true, y: true, z: true, roll: false, pitch: false, yaw: false },
+  kinematicMask = { x: true, y: true, z: true, roll: false, pitch: true, yaw: false },
   onKinematicMaskChange = null,
 }, ref) {
   const { getPoseFromJoints, solveJointsFromPose } = useKinematics();

@@ -35,7 +35,7 @@ POSSIBILITY OF SUCH DAMAGE.
   <xacro:include filename="$(find pincher_arm_description)/urdf/arm_hardware.xacro"/>
 
   <material name="White">
-    <color rgba="1 1 1 1.0"/>
+    <color rgba="5 5 5 2.0"/>
   </material>
   <material name="Black">
     <color rgba="0.2 0.2 0.2 1.0"/>
@@ -45,16 +45,16 @@ POSSIBILITY OF SUCH DAMAGE.
   </material>
 
   <xacro:macro name="pincher_arm" params="
-      color:=Gray
+      color:=White
       joints_vlimit:=1.571
-      pan_llimit:=-2.617
-      pan_ulimit:=2.617
-      shoulder_llimit:=-2.09
-      shoulder_ulimit:=2.09
-      elbow_llimit:=-2.42
-      elbow_ulimit:=2.42
-      wrist_llimit:=-1.71
-      wrist_ulimit:=1.79
+      pan_llimit:=-3.14159
+      pan_ulimit:=3.14159
+      shoulder_llimit:=-3.14159
+      shoulder_ulimit:=3.14159
+      elbow_llimit:=-3.14159
+      elbow_ulimit:=3.14159
+      wrist_llimit:=-3.14159
+      wrist_ulimit:=3.14159
       gripper_llimit:=-2.6
       gripper_ulimit:=0.0">
 

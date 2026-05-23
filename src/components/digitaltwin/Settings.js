@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Paper, Typography, Stack, Switch, FormControlLabel } from '@mui/material';
+import { Box, Paper, Typography, Stack, Switch, FormControlLabel, Divider } from '@mui/material';
 
 function Settings() {
   const [settings, setSettings] = React.useState(() => {
@@ -15,6 +15,7 @@ function Settings() {
     return {
       autoReconnect: false,
       logOutput: false,
+      useWorldTranslation: true,
     };
   });
 
@@ -40,11 +41,45 @@ function Settings() {
           <FormControlLabel
             control={
               <Switch
+                checked={settings.useWorldTranslation || false}
+                onChange={(e) => handleChange('useWorldTranslation', e.target.checked)}
+              />
+            }
+            label="Use world-space translation
+          />
+
+          <Divider />
+
+          <FormControlLabel
+            control={
+              <Switch
+                checked={settings.showGrid || false}
+                onChange={(e) => handleChange('showGrid', e.target.checked)}
+              />
+            }
+            label="Show grid lines"
+          />
+
+          <FormControlLabel
+            control={
+              <Switch
+                checked={settings.showAxes || false}
+                onChange={(e) => handleChange('showAxes', e.target.checked)}
+              />
+            }
+            label="Show axis"
+          />
+
+          <Divider />
+
+          <FormControlLabel
+            control={
+              <Switch
                 checked={settings.autoReconnect}
                 onChange={(e) => handleChange('autoReconnect', e.target.checked)}
               />
             }
-            label="Auto-reconnect on disconnection"
+            label="Auto reconnect on this connection"
           />
 
           <FormControlLabel
@@ -54,7 +89,7 @@ function Settings() {
                 onChange={(e) => handleChange('logOutput', e.target.checked)}
               />
             }
-            label="Log serial output (for debugging)"
+            label="Lock serial output"
           />
         </Stack>
       </Paper>

@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Box, Paper, Stack } from '@mui/material';
+import { Alert, Box, Paper, Stack, IconButton, Typography, FormControlLabel, Switch, Divider } from '@mui/material';
 import { Canvas, useThree } from '@react-three/fiber';
 import { Html, OrbitControls, TransformControls } from '@react-three/drei';
 import * as THREE from 'three';
+import SettingsIcon from '@mui/icons-material/Settings';
 import URDFLoader from 'urdf-loader';
 import { XacroParser } from 'xacro-parser';
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
@@ -13,9 +14,16 @@ import useKinematics from './hooks/useKinematics';
 // Constants
 // ─────────────────────────────────────────────────────────────────────────────
 
-const DEFAULT_CAMERA = [6, 6, 6];
+const DEFAULT_CAMERA = [0.4, 0.6, 0.4];
 const PINCHER_PACKAGE = 'pincher_arm_description';
 const PINCHER_ENTRY_XACRO = `urdf/pincher_arm.urdf.xacro`;
+const DEFAULT_VIEW_SETTINGS = {
+  showGrid: true,
+  showAxes: true,
+  autoReconnect: false,
+  logOutput: false,
+  useWorldTranslation: false,
+};
 
 /** Servo degree range used to center joint angles. 296.67° total, mid = 148.335° */
 const JOINT_DEGREE_CENTER = 148.335;
@@ -203,10 +211,10 @@ function SceneContent({
   interpolationPlan = [],
   onWaypointClick,
   onSceneTransformation,
+  useWorldTranslation = false,
   kinematicMask = { x: true, y: true, z: true, roll: false, pitch: false, yaw: false },
 }) {
   const { getPositionFromJoints } = useKinematics();
-  const { camera, invalidate } = useThree();
 
   // Refs for the invisible handle meshes used by TransformControls.
   // Use separate refs so translate can sample position from one mesh
@@ -215,7 +223,7 @@ function SceneContent({
   const meshRefRot = useRef();
   const pathGroupRef = useRef();
   const audioContextRef = useRef(null);
-  const errorAudioRef = useRef(null);
+  const [isOrbitLocked, setIsOrbitLocked] = useState(false);
   const [handleReady, setHandleReady] = useState(false);
   // const [handleReady, setHandleReady] = useState(false);
 
@@ -225,12 +233,7 @@ function SceneContent({
     }
   }, [handleReady, transformedPosition, transformedRotation]);
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const audio = new Audio('/sounds/mac-error.wav');
-    audio.preload = 'auto';
-    errorAudioRef.current = audio;
-  }, []);
+
 
   // ── Transform onChange handlers ────────────────────────────────────────────
   //  Defined here (near the top of the component) so they are easy to locate
@@ -240,85 +243,47 @@ function SceneContent({
    * Play a short, macOS-style error beep using Web Audio.
    * This avoids shipping a bundled sound asset while still giving clear feedback.
    */
-  const playMacErrorBeep = () => {
-    if (typeof window === 'undefined') return;
 
-    if (errorAudioRef.current) {
-      errorAudioRef.current.currentTime = 0;
-      const playbackPromise = errorAudioRef.current.play();
-      if (playbackPromise && typeof playbackPromise.then === 'function') {
-        playbackPromise.catch(() => {
-          // Fall through to synthesized beep if autoplay playback is blocked.
-        });
-      }
-      return;
+  const lockOrbit = () => {
+    setIsOrbitLocked(true);
+    if (controlsRef.current) {
+      controlsRef.current.enabled = false;
     }
+  };
 
-    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-    if (!AudioContextClass) return;
-
-    if (!audioContextRef.current) {
-      audioContextRef.current = new AudioContextClass();
+  const unlockOrbit = () => {
+    setIsOrbitLocked(false);
+    if (controlsRef.current) {
+      controlsRef.current.enabled = true;
     }
-
-    const context = audioContextRef.current;
-    if (context.state === 'suspended') {
-      context.resume().catch(() => {});
-    }
-
-    const now = context.currentTime;
-    const gain = context.createGain();
-    gain.connect(context.destination);
-
-    gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.exponentialRampToValueAtTime(0.08, now + 0.01);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.22);
-
-    const oscA = context.createOscillator();
-    oscA.type = 'triangle';
-    oscA.frequency.setValueAtTime(880, now);
-    oscA.connect(gain);
-    oscA.start(now);
-    oscA.stop(now + 0.11);
-
-    const oscB = context.createOscillator();
-    oscB.type = 'triangle';
-    oscB.frequency.setValueAtTime(660, now + 0.11);
-    oscB.connect(gain);
-    oscB.start(now + 0.11);
-    oscB.stop(now + 0.22);
   };
 
   /**
-   * Generic mouseUp handler for any TransformControls widget.
-   * Enables/disables OrbitControls while dragging, then calls `onComplete`
-   * with the current world pose once the drag ends.
-   *
-   * @param {object} event      - drei TransformControls mouseUp event ({ value: boolean })
-   * @param {Function} onComplete - callback invoked with the world pose when drag ends
+   * Run the IK solver while the handle is being dragged.
+   * If the pose is unreachable, restore the last valid scene pose.
    */
-  const handleTransformControlMouseUp = (event, meshRef, onComplete) => {
-    // Freeze orbit-camera while the user is dragging a transform handle.
-    if (controlsRef.current) {
-      controlsRef.current.enabled = !event.value;
-    }
-    if (!event.value && typeof onComplete === 'function') {
-      const result = onComplete(readMeshWorldPose(meshRef?.current)); // true if solved
+  const handleTransformControlChange = (meshRef, onComplete) => {
+    if (!meshRef?.current) return false;
+
+    const pose = readMeshWorldPose(meshRef.current);
+    const currentRotation = transformedRotation || [0, 0, 0];
+    if (typeof onComplete === 'function') {
+      const result = onComplete(pose);
       if (result === false) {
-        playMacErrorBeep();
         meshRef.current.position.set(transformedPosition[0], transformedPosition[1], transformedPosition[2]);
-        meshRef.current.rotation.set(transformedRotation[0], transformedRotation[1], transformedRotation[2]);
+        meshRef.current.rotation.set(currentRotation[0], currentRotation[1], currentRotation[2]);
       }
       return result;
     }
+
+    return true;
   };
 
   /**
-   * onChange for the translate TransformControls.
-   * Extracts only the position from the world pose and forwards it upstream.
+   * Forward the dragged pose upstream while the user is interacting with the handle.
    */
-  const handleMouseUp = (event) => {
-    return handleTransformControlMouseUp(event, meshRef, (pose) => {
+  const handleTransformControlObjectChange = (meshRef) => {
+    return handleTransformControlChange(meshRef, (pose) => {
         return onSceneTransformation?.(pose);
     });
   };
@@ -342,37 +307,12 @@ function SceneContent({
     }
   }, [interpolationPlan, getPositionFromJoints]);
 
-  // ── Camera auto-fit ────────────────────────────────────────────────────────
-
-  /** Fit the camera to the loaded robot's bounding box whenever the robot changes. */
-  useEffect(() => {
-    if (!robot) return;
-
-    const box = new THREE.Box3().setFromObject(robot);
-    if (!box.isEmpty()) {
-      const center = box.getCenter(new THREE.Vector3());
-      const size = box.getSize(new THREE.Vector3());
-      const maxDim = Math.max(size.x, size.y, size.z) || 1;
-      const distance = maxDim * 1;
-
-      camera.position.set(center.x + distance, center.y + distance * 0.8, center.z + distance);
-      camera.near = maxDim / 100;
-      camera.far = maxDim * 100;
-      camera.updateProjectionMatrix();
-
-      if (controlsRef.current) {
-        controlsRef.current.target.copy(center);
-        controlsRef.current.update();
-      }
-    }
-  }, [camera, controlsRef, robot]);
-
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
     <>
       {/* Scene background & lighting */}
-      <color attach="background" args={['#f6f8fb']} />
+      <color attach="background" args={['#CFCFCF']} />
       <ambientLight intensity={0.55} />
       <directionalLight position={[8, 10, 6]} intensity={0.8} castShadow />
       <pointLight position={[-8, 4, -6]} intensity={0.25} />
@@ -433,14 +373,15 @@ function SceneContent({
       {showTransformControls && handleReady && (
         <TransformControls
           object={meshRef.current}
-          // space={transformControlsSpace}
-          space = "world"
+          space={useWorldTranslation ? 'world' : 'local'}
           mode="translate"
           size={0.5}
           showX={kinematicMask.x}//&&
           showY={kinematicMask.y}//&&
           showZ={kinematicMask.z}//&&
-          onMouseUp={(e) => handleMouseUp(e)}
+          onMouseDown={lockOrbit}
+          onObjectChange={() => handleTransformControlObjectChange(meshRef)}
+          onMouseUp={unlockOrbit}
         />
       )}
       {showTransformControls && handleReady && (
@@ -452,7 +393,9 @@ function SceneContent({
           showX={kinematicMask.roll }//&&
           showY={kinematicMask.pitch }//&&
           showZ={kinematicMask.yaw }//&&
-          onMouseUp={(e) => handleMouseUp(e)}
+          onMouseDown={lockOrbit}
+          onObjectChange={() => handleTransformControlObjectChange(meshRef)}
+          onMouseUp={unlockOrbit}
         />
       )}
 
@@ -465,7 +408,7 @@ function SceneContent({
       <OrbitControls
         ref={controlsRef}
         makeDefault
-        
+        enabled={!isOrbitLocked}
         enableDamping
         dampingFactor={0.08}
         minDistance={0.1}
@@ -604,14 +547,69 @@ function URDFSceneViewport({
 }) {
   const { getForwardMatrixFromJoints } = useKinematics();
   const controlsRef = useRef(null);
+  const [showSettings, setShowSettings] = useState(false);
+  const [isShiftPressed, setIsShiftPressed] = useState(false);
+  const [viewportSettings, setViewportSettings] = useState(() => {
+    const saved = localStorage.getItem('dtSettings');
+    if (saved) {
+      try {
+        return { ...DEFAULT_VIEW_SETTINGS, ...JSON.parse(saved) };
+      } catch (error) {
+        console.error('Failed to parse settings', error);
+      }
+    }
+
+    return DEFAULT_VIEW_SETTINGS;
+  });
 
   // Build the bundled asset map once and reuse it across re-renders.
   const bundledPackageMapRef = useRef(buildBundledPackageMap());
 
   const [robot, setRobot] = useState(null);
-  const [showGrid] = useState(true);
-  const [showAxes] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
+
+  useEffect(() => {
+    localStorage.setItem('dtSettings', JSON.stringify(viewportSettings));
+  }, [viewportSettings]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Shift') {
+        setIsShiftPressed(true);
+      }
+    };
+
+    const handleKeyUp = (event) => {
+      if (event.key === 'Shift') {
+        setIsShiftPressed(false);
+      }
+    };
+
+    const handleWindowBlur = () => {
+      setIsShiftPressed(false);
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('blur', handleWindowBlur);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('blur', handleWindowBlur);
+    };
+  }, []);
+
+  const isUsingWorldTranslation = viewportSettings.useWorldTranslation !== isShiftPressed;
+
+  const updateSetting = (key, value) => {
+    setViewportSettings((prev) => ({
+      ...prev,
+      [key]: value,
+    }));
+  };
 
   // ── Derived state ──────────────────────────────────────────────────────────
 
@@ -711,8 +709,8 @@ function URDFSceneViewport({
           jointTargets={jointTargets}
           setJointTargets={setJointTargets}
           robot={robot}
-          showGrid={showGrid}
-          showAxes={showAxes}
+          showGrid={viewportSettings.showGrid}
+          showAxes={viewportSettings.showAxes}
           controlsRef={controlsRef}
           showTransformControls={showTransformControls}
           transformControlsSpace={transformControlsSpace}
@@ -721,9 +719,87 @@ function URDFSceneViewport({
           interpolationPlan={interpolationPlan}
           onWaypointClick={onWaypointClick}
           onSceneTransformation={onSceneTransformation}
+          useWorldTranslation={isUsingWorldTranslation}
           kinematicMask={kinematicMask}
         />
       </Canvas>
+
+      <IconButton
+        aria-label="settings"
+        sx={{
+          position: 'absolute',
+          left: 20,
+          bottom: 20,
+          zIndex: 12,
+          bgcolor: 'rgba(255,255,255,0.9)',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
+          '&:hover': {
+            bgcolor: '#ffffff',
+          },
+        }}
+        onClick={() => setShowSettings((prev) => !prev)}
+      >
+        <SettingsIcon />
+      </IconButton>
+
+      {showSettings && (
+        <Paper sx={{ position: 'absolute', left: 20, bottom: 72, p: 2, borderRadius: 2, zIndex: 13, minWidth: 220, bgcolor: 'rgba(255,255,255,0.95)', boxShadow: '0 6px 18px rgba(0,0,0,0.16)' }}>
+          <Typography variant="subtitle2" sx={{ mb: 1 }}>Viewport Settings</Typography>
+          <Stack spacing={1.25}>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={viewportSettings.useWorldTranslation}
+                  onChange={(e) => updateSetting('useWorldTranslation', e.target.checked)}
+                />
+              }
+              label="Use world-space translation"
+            />
+
+            <Divider />
+
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={viewportSettings.showGrid}
+                  onChange={(e) => updateSetting('showGrid', e.target.checked)}
+                />
+              }
+              label="Show grid lines"
+            />
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={viewportSettings.showAxes}
+                  onChange={(e) => updateSetting('showAxes', e.target.checked)}
+                />
+              }
+              label="Show axis"
+            />
+
+            <Divider />
+
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={viewportSettings.autoReconnect}
+                  onChange={(e) => updateSetting('autoReconnect', e.target.checked)}
+                />
+              }
+              label="Auto reconnect on this connection"
+            />
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={viewportSettings.logOutput}
+                  onChange={(e) => updateSetting('logOutput', e.target.checked)}
+                />
+              }
+              label="Lock serial output"
+            />
+          </Stack>
+        </Paper>
+      )}
 
       {/* Overlay: error messages */}
       <Stack spacing={1.2} sx={{ position: 'absolute', top: 12, left: 12, pointerEvents: 'none' }}>

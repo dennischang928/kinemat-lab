@@ -112,7 +112,7 @@ export default function ConnectionHeader({
                 size="large"
                 color="primary"
                 aria-label="power-on"
-                disabled={!isConnected || areActionButtonsLocked}
+                disabled={!isConnected}
               >
                 <PowerIcon />
               </IconButton>

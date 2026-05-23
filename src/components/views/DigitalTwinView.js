@@ -3,7 +3,6 @@ import { Box } from '@mui/material';
 import ControlPanel from '../digitaltwin/ControlPanel';
 import PoseControl from '../digitaltwin/PoseControl';
 import Programming from '../digitaltwin/Programming';
-import Settings from '../digitaltwin/Settings';
 import URDFSceneViewport from '../digitaltwin/URDFSceneViewport';
 import CommandPanel from '../digitaltwin/CommandPanel';
 import ConnectionHeader from '../digitaltwin/ConnectionHeader';
@@ -363,9 +362,6 @@ function DigitalTwinView({ activeSection = 'control', onSectionChange = () => { 
               setProgramButtonLabel={setProgramButtonLabel}
             />
           </Box>
-          <Box sx={{ display: activeSection === 'settings' ? 'block' : 'none', height: '100%' }}>
-            <Settings />
-          </Box>
         </Box>
 
         {/* Unified Command Panel */}
@@ -411,7 +407,7 @@ function DigitalTwinView({ activeSection = 'control', onSectionChange = () => { 
           interpolationPlan={interpolationPlan}
           onWaypointClick={handleWaypointClick}
           onSceneTransformation={handleSceneTransformation}
-          kinematicMask={activeSection === 'pose' ? kinematicMask : { x: true, y: true, z: true, roll: true, pitch: true, yaw: true }}
+          kinematicMask={activeSection === 'pose' ? kinematicMask : { x: true, y: true, z: true, roll: false, pitch: true, yaw: false }}
         />
       </Box>
     </Box>

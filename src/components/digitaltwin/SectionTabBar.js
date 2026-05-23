@@ -4,7 +4,6 @@ const SECTIONS = [
   { key: 'control', label: 'Control' },
   { key: 'pose', label: 'Pose Control' },
   { key: 'programming', label: 'Programming' },
-  { key: 'settings', label: 'Settings' },
 ];
 
 /**
