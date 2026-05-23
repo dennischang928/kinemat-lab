@@ -1,6 +1,6 @@
 import { calculateInverseKinematicsMatrix } from './ik.js';
 
-const JOINT_KEYS = ['J1', 'J2', 'J3', 'J4', 'J5'];
+const JOINT_KEYS = ['J1', 'J2', 'J3', 'J4'];
 const CARTESIAN_KEYS = ['x', 'y', 'z'];
 const DEFAULT_SPIKE_THRESHOLD_DEG_PER_STEP = 20;
 const DEFAULT_SPIKE_FACTOR = 4;
@@ -150,21 +150,20 @@ export const interpolateCartesianWithIK = (fromFrame = {}, toFrame = {}, segment
 		};
 
 		const sol = calculateInverseKinematicsMatrix(T, numericOptions);
-		// console.log('IK guess:', guessJointsDeg, '->', sol ? { q1: radToDeg(sol.q1) + CENTER_OFFSET_DEG, q2: radToDeg(sol.q2) + CENTER_OFFSET_DEG, q3: radToDeg(sol.q3) + CENTER_OFFSET_DEG, q4: radToDeg(sol.q4) + CENTER_OFFSET_DEG, q5: radToDeg(sol.q5) + CENTER_OFFSET_DEG } : 'no solution');
+		// console.log('IK guess:', guessJointsDeg, '->', sol ? { q1: radToDeg(sol.q1) + CENTER_OFFSET_DEG, q2: radToDeg(sol.q2) + CENTER_OFFSET_DEG, q3: radToDeg(sol.q3) + CENTER_OFFSET_DEG, q4: radToDeg(sol.q4) + CENTER_OFFSET_DEG } : 'no solution');
 
 		if (!sol) {
 			console.warn(`IK failed at segment ${i}/${count} (t=${t.toFixed(2)}) - position (${x.toFixed(2)}, ${y.toFixed(2)}, ${z.toFixed(2)}) is unreachable.`);
 			return { jointPoints: [], success: false };
 		}
 
-		previousSolution = [sol.q1, sol.q2, sol.q3, sol.q4, sol.q5];
+		previousSolution = [sol.q1, sol.q2, sol.q3, sol.q4];
 
 		const jointsDeg = {
 			J1: radToDeg(sol.q1) + CENTER_OFFSET_DEG,
 			J2: radToDeg(sol.q2) + CENTER_OFFSET_DEG,
 			J3: radToDeg(sol.q3) + CENTER_OFFSET_DEG,
 			J4: radToDeg(sol.q4) + CENTER_OFFSET_DEG,
-			J5: radToDeg(sol.q5) + CENTER_OFFSET_DEG,
 		};
 
 		jointPoints.push(jointsDeg);

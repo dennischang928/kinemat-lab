@@ -235,7 +235,10 @@ const ProgramInner = forwardRef(function PoseProgram({
 
 	const loadFrameToPose = (frame) => {
 		if (!frame) return;
-		setJointTargets({ ...frame.joints });
+		setJointTargets((prev) => ({
+			...prev,
+			...frame.joints,
+		}));
 		setFeedrate(clampFeedrate(parseInt(frame.feedrate, 10) || FEEDRATE_MIN));
 	};
 
@@ -282,7 +285,10 @@ const ProgramInner = forwardRef(function PoseProgram({
 
 	const applyPoseStep = async (joints, frameFeedrate, { skipVisualUpdate = false, actuallySend = false } = {}) => {
 		if (!skipVisualUpdate) {
-			setJointTargets({ ...joints });
+			setJointTargets((prev) => ({
+				...prev,
+				...joints,
+			}));
 			if (!useLinearInterpolation) {
 				setFeedrate(clampFeedrate(parseInt(frameFeedrate, 10) || FEEDRATE_MIN));
 			}
@@ -292,15 +298,13 @@ const ProgramInner = forwardRef(function PoseProgram({
 		const j2 = angleToSteps(joints.J2);
 		const j3 = angleToSteps(joints.J3);
 		const j4 = angleToSteps(joints.J4);
-		const j5 = angleToSteps(joints.J5);
-
 		// `G0` is the fast path used by linear interpolation, so it keeps
 		// the command compact and avoids waiting for an OK between frames.
 		// `G1` is the explicit path used for normal playback, where the
 		// firmware receives a full joint list plus feedrate.
 		const command = useLinearInterpolation
-			? `G0 ${j1},${j2},${j3},${j4},${j5}\n`
-			: `G1 J1:${j1} J2:${j2} J3:${j3} J4:${j4} J5:${j5} F${clampFeedrate(frameFeedrate)}\n`;
+			? `G0 ${j1},${j2},${j3},${j4}\n`
+			: `G1 J1:${j1} J2:${j2} J3:${j3} J4:${j4} F${clampFeedrate(frameFeedrate)}\n`;
 
 		if (useLinearInterpolation) {
 			const now = Date.now();
@@ -365,7 +369,10 @@ const ProgramInner = forwardRef(function PoseProgram({
 			if (playbackPlan.length > 0) {
 				const firstStep = playbackPlan[0];
 				setCurrentStepIndex(0);
-				setJointTargets({ ...firstStep.joints });
+				setJointTargets((prev) => ({
+					...prev,
+					...firstStep.joints,
+				}));
 				setFeedrate(300);
 				// small pause to allow UI to update
 				await wait(200);
@@ -401,7 +408,10 @@ const ProgramInner = forwardRef(function PoseProgram({
 			}
 
 			if (isRapidMode && lastExecutedStep) {
-				setJointTargets({ ...lastExecutedStep.joints });
+				setJointTargets((prev) => ({
+					...prev,
+					...lastExecutedStep.joints,
+				}));
 				setCurrentStepIndex(playbackPlan.length - 1);
 			}
 		} catch (err) {
@@ -450,7 +460,10 @@ const ProgramInner = forwardRef(function PoseProgram({
 			if (playbackPlan.length > 0) {
 				const firstStep = playbackPlan[0];
 				setCurrentStepIndex(0);
-				setJointTargets({ ...firstStep.joints });
+				setJointTargets((prev) => ({
+					...prev,
+					...firstStep.joints,
+				}));
 				setFeedrate(300);
 
 				// Move to initial programmed pose on the real arm and wait for 'Complete'.
@@ -458,8 +471,7 @@ const ProgramInner = forwardRef(function PoseProgram({
 				const j2 = angleToSteps(firstStep.joints.J2);
 				const j3 = angleToSteps(firstStep.joints.J3);
 				const j4 = angleToSteps(firstStep.joints.J4);
-				const j5 = angleToSteps(firstStep.joints.J5);
-				const initialCommand = `G1 J1:${j1} J2:${j2} J3:${j3} J4:${j4} J5:${j5} F300\n`;
+				const initialCommand = `G1 J1:${j1} J2:${j2} J3:${j3} J4:${j4} F300\n`;
 
 				const ok = await connection.sendCommandWithTimeout(initialCommand);
 				if (!ok) {
@@ -513,7 +525,10 @@ const ProgramInner = forwardRef(function PoseProgram({
 			}
 
 			if (isRapidMode && lastExecutedStep) {
-				setJointTargets({ ...lastExecutedStep.joints });
+				setJointTargets((prev) => ({
+					...prev,
+					...lastExecutedStep.joints,
+				}));
 				setCurrentStepIndex(playbackPlan.length - 1);
 			}
 		} catch (err) {

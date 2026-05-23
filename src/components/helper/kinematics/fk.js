@@ -1,15 +1,13 @@
 /**
- * Compute 5-DOF forward kinematics homogeneous transform.
+ * Compute 4-DOF forward kinematics homogeneous transform.
  * Angles are in radians.
  *
- * @param {Object} joints - Joint angles { q1, q2, q3, q4, q5 }
+ * @param {Object} joints - Joint angles { q1, q2, q3, q4 }
  * @returns {number[][]} 4x4 transform matrix T
  */
-export const calculateForwardKinematicsMatrix = ({ q1 = 0, q2 = 0, q3 = 0, q4 = 0, q5 = 0 } = {}) => {
+export const calculateForwardKinematicsMatrix = ({ q1 = 0, q2 = 0, q3 = 0, q4 = 0 } = {}) => {
 	const s1 = Math.sin(q1);
 	const c1 = Math.cos(q1);
-	const s5 = Math.sin(q5);
-	const c5 = Math.cos(q5);
 
 	const q234 = q2 + q3 + q4;
 	const s234 = Math.sin(q234);
@@ -38,7 +36,7 @@ export const calculateForwardKinematicsMatrix = ({ q1 = 0, q2 = 0, q3 = 0, q4 = 
 /**
  * Same FK matrix but takes degrees as input.
  *
- * @param {Object} jointsDeg - Joint angles { q1, q2, q3, q4, q5 } in degrees
+ * @param {Object} jointsDeg - Joint angles { q1, q2, q3, q4 } in degrees
  * @returns {number[][]} 4x4 transform matrix T
  */
 export const calculateForwardKinematicsMatrixDegrees = ({
@@ -46,7 +44,6 @@ export const calculateForwardKinematicsMatrixDegrees = ({
 	q2 = 0,
 	q3 = 0,
 	q4 = 0,
-	q5 = 0,
 } = {}) => {
 	const toRad = (deg) => deg * (Math.PI / 180);
 	return calculateForwardKinematicsMatrix({
@@ -54,7 +51,6 @@ export const calculateForwardKinematicsMatrixDegrees = ({
 		q2: toRad(q2),
 		q3: toRad(q3),
 		q4: toRad(q4),
-		q5: toRad(q5),
 	});
 };
 

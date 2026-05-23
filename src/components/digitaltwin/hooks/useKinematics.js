@@ -15,7 +15,6 @@ const toSeedRadians = (jointTargets = {}) => ([
     ((jointTargets.J2 || 0) - CENTEROFFSETDEG) * DEG_TO_RAD,
     ((jointTargets.J3 || 0) - CENTEROFFSETDEG) * DEG_TO_RAD,
     ((jointTargets.J4 || 0) - CENTEROFFSETDEG) * DEG_TO_RAD,
-    ((jointTargets.J5 || 0) - CENTEROFFSETDEG) * DEG_TO_RAD,
 ]);
 
 const poseToMatrix = ({ x = 0, y = 0, z = 0, roll = 0, pitch = 0, yaw = 0 }) => {
@@ -75,7 +74,6 @@ function useKinematics() {
             q2: (jointTargets.J2 || 0) - CENTEROFFSETDEG,
             q3: (jointTargets.J3 || 0) - CENTEROFFSETDEG,
             q4: (jointTargets.J4 || 0) - CENTEROFFSETDEG,
-            q5: (jointTargets.J5 || 0) - CENTEROFFSETDEG,
         });
     }, []);
 
@@ -124,7 +122,6 @@ function useKinematics() {
             J2: solution.q2 + CENTEROFFSETDEG,
             J3: solution.q3 + CENTEROFFSETDEG,
             J4: solution.q4 + CENTEROFFSETDEG,
-            J5: solution.q5 + CENTEROFFSETDEG,
             converged: solution.converged,
             reachable: solution.reachable,
             iterations: solution.iterations,

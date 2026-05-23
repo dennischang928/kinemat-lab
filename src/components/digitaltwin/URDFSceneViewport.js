@@ -203,7 +203,7 @@ function SceneContent({
   interpolationPlan = [],
   onWaypointClick,
   onSceneTransformation,
-  kinematicMask = { x: true, y: true, z: true, roll: true, pitch: true, yaw: true },
+  kinematicMask = { x: true, y: true, z: true, roll: false, pitch: false, yaw: false },
 }) {
   const { getPositionFromJoints } = useKinematics();
   const { camera, invalidate } = useThree();
@@ -217,6 +217,7 @@ function SceneContent({
   const audioContextRef = useRef(null);
   const errorAudioRef = useRef(null);
   const [handleReady, setHandleReady] = useState(false);
+  // const [handleReady, setHandleReady] = useState(false);
 
   useEffect(() => {
     if (meshRef.current && !handleReady) {
@@ -408,7 +409,12 @@ function SceneContent({
               onClick={(e) => {
                 e.stopPropagation();
                 // Seek the robot to this joint snapshot on click.
-                if (p.joints && setJointTargets) setJointTargets(p.joints);
+                if (p.joints && setJointTargets) {
+                  setJointTargets((prev) => ({
+                    ...prev,
+                    ...p.joints,
+                  }));
+                }
                 if (onWaypointClick) onWaypointClick(idx);
               }}
               onPointerOver={(e) => { e.stopPropagation(); document.body.style.cursor = 'pointer'; }}
@@ -427,12 +433,13 @@ function SceneContent({
       {showTransformControls && handleReady && (
         <TransformControls
           object={meshRef.current}
-          space={transformControlsSpace}
+          // space={transformControlsSpace}
+          space = "world"
           mode="translate"
-          size={1}
-          showX={kinematicMask.x !== false}
-          showY={kinematicMask.y !== false}
-          showZ={kinematicMask.z !== false}
+          size={0.5}
+          showX={kinematicMask.x}//&&
+          showY={kinematicMask.y}//&&
+          showZ={kinematicMask.z}//&&
           onMouseUp={(e) => handleMouseUp(e)}
         />
       )}
@@ -442,9 +449,9 @@ function SceneContent({
           space="local"
           mode="rotate"
           size={1}
-          showX={kinematicMask.roll !== false}
-          showY={kinematicMask.pitch !== false}
-          showZ={kinematicMask.yaw !== false}
+          showX={kinematicMask.roll }//&&
+          showY={kinematicMask.pitch }//&&
+          showZ={kinematicMask.yaw }//&&
           onMouseUp={(e) => handleMouseUp(e)}
         />
       )}

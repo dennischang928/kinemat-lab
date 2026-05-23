@@ -40,7 +40,7 @@ const normalizePoseMask = (mask) => {
 const activePoseRows = (mask) => mask.flatMap((enabled, idx) => (enabled ? [idx] : []));
 
 /* ====== FK wrapper (small helper to keep calls concise) ====== */
-const fkFromArray = (joints) => calculateForwardKinematicsMatrix({ q1: joints[0], q2: joints[1], q3: joints[2], q4: joints[3], q5: joints[4] });
+const fkFromArray = (joints) => calculateForwardKinematicsMatrix({ q1: joints[0], q2: joints[1], q3: joints[2], q4: joints[3] });
 
 /* ====== Pose error (translation + small-angle rotation error) ====== */
 const matrixPoseError = (currentMatrix, targetMatrix) => {
@@ -68,14 +68,14 @@ const matrixPoseError = (currentMatrix, targetMatrix) => {
 };
 
 /* ====== Numeric Jacobian + DLS step builder (returns delta vector) ====== */
-const buildMaskedLeastSquaresStep = (joints, targetMatrix, activeRows, stepSize, damping, currentPoseError) => {
-	if (activeRows.length === 0) return { delta: [0, 0, 0, 0, 0] };
+	const buildMaskedLeastSquaresStep = (joints, targetMatrix, activeRows, stepSize, damping, currentPoseError) => {
+	if (activeRows.length === 0) return { delta: [0, 0, 0, 0] };
 
 	const error = activeRows.map((r) => currentPoseError[r]);
-	const J = Array.from({ length: activeRows.length }, () => Array(5).fill(0));
+	const J = Array.from({ length: activeRows.length }, () => Array(4).fill(0));
 
 	// compute FD columns
-	for (let j = 0; j < 5; j++) {
+	for (let j = 0; j < 4; j++) {
 		const plus = fkFromArray(joints.map((q, i) => (i === j ? q + stepSize : q)));
 		const minus = fkFromArray(joints.map((q, i) => (i === j ? q - stepSize : q)));
 		const ePlus = matrixPoseError(plus, targetMatrix);
@@ -88,7 +88,7 @@ const buildMaskedLeastSquaresStep = (joints, targetMatrix, activeRows, stepSize,
 	const N = JT.mmul(Jm);
 	const rhs = JT.mmul(Matrix.columnVector(error));
 
-	for (let d = 0; d < 5; d++) N.set(d, d, N.get(d, d) + damping * damping);
+	for (let d = 0; d < 4; d++) N.set(d, d, N.get(d, d) + damping * damping);
 
 	const sol = solveLinearSystem(N.to2DArray(), rhs.to2DArray());
 	if (!sol) return null;
@@ -99,9 +99,9 @@ const buildMaskedLeastSquaresStep = (joints, targetMatrix, activeRows, stepSize,
 /* ====== Seed generation (analytic guess) ====== */
 const createInitialJointGuess = (T, options = {}) => {
 	const { initialGuess } = options;
-	if (Array.isArray(initialGuess) && initialGuess.length >= 5) return wrapJointVector(initialGuess.slice(0, 5));
+	if (Array.isArray(initialGuess) && initialGuess.length >= 4) return wrapJointVector(initialGuess.slice(0, 4));
 
-	const { elbow = 'down', preferredQ5 = 0 } = options;
+	const { elbow = 'down' } = options;
 	const sign = elbow === 'up' ? -1 : 1;
 
 	const x = T[0][3] ?? 0; const y = T[1][3] ?? 0; const z = T[2][3] ?? 0;
@@ -114,8 +114,6 @@ const createInitialJointGuess = (T, options = {}) => {
 	const c234 = -(r13 * c1 + r23 * s1);
 	const s234 = clamp(r33, -1, 1);
 	const q234 = Math.atan2(s234, c234);
-	const q5 = preferredQ5;
-
 	const wristPlanar = radial - WRIST * Math.sin(q234);
 	const wristVertical = z - BASE_HEIGHT - WRIST * Math.cos(q234);
 	const wristDistSq = wristPlanar * wristPlanar + wristVertical * wristVertical;
@@ -127,7 +125,7 @@ const createInitialJointGuess = (T, options = {}) => {
 	const q2 = Math.atan2(wristPlanar, wristVertical) - Math.atan2(FOREARM * Math.sin(q3), UPPER_ARM + FOREARM * Math.cos(q3));
 	const q4 = q234 - q2 - q3;
 
-	return wrapJointVector([q1, q2, q3, q4, q5]);
+	return wrapJointVector([q1, q2, q3, q4]);
 };
 
 /* ====== Local solver: Levenberg-Marquardt (per-seed) ====== */
@@ -152,7 +150,7 @@ const solveFromSeed = (seed, targetMatrix, poseMask, stepSize, damping, maxItera
 		if (!step) break;
 
 		const { delta } = step;
-		for (let j = 0; j < 5; j++) joints[j] = wrapToPi(joints[j] + delta[j]);
+		for (let j = 0; j < 4; j++) joints[j] = wrapToPi(joints[j] + delta[j]);
 
 		curMat = fkFromArray(joints);
 		curErr = matrixPoseError(curMat, targetMatrix);
@@ -173,8 +171,8 @@ export const calculateInverseKinematicsMatrix = (targetMatrix, options = {}) => 
 	const poseMask = normalizePoseMask(mask);
 
 	// continuity/optimize mode: prefer solution near a previous joint vector
-	if (Array.isArray(optimizeToGuess) && optimizeToGuess.length >= 5) {
-		const wrappedPrev = wrapJointVector(optimizeToGuess.slice(0, 5));
+	if (Array.isArray(optimizeToGuess) && optimizeToGuess.length >= 4) {
+		const wrappedPrev = wrapJointVector(optimizeToGuess.slice(0, 4));
 
 		const elbowDownBase = createInitialJointGuess(targetMatrix, { elbow: 'down' });
 		const elbowUpBase = createInitialJointGuess(targetMatrix, { elbow: 'up' });
@@ -194,16 +192,16 @@ export const calculateInverseKinematicsMatrix = (targetMatrix, options = {}) => 
 		const final = best || bestByError;
 		if (!final) return null;
 
-		return { q1: final.joints[0], q2: final.joints[1], q3: final.joints[2], q4: final.joints[3], q5: final.joints[4], reachable: true, converged: final.converged, iterations: final.iterations, errorNorm: final.errorNorm, seedErrorNorm: final.seedErrorNorm, bestErrorNorm: final.bestErrorNorm, mask: poseMask, continuityMode: true, elbow: final.name };
+		return { q1: final.joints[0], q2: final.joints[1], q3: final.joints[2], q4: final.joints[3], reachable: true, converged: final.converged, iterations: final.iterations, errorNorm: final.errorNorm, seedErrorNorm: final.seedErrorNorm, bestErrorNorm: final.bestErrorNorm, mask: poseMask, continuityMode: true, elbow: final.name };
 	}
 
 	// build candidate seeds
 	const candidates = [];
-	if (Array.isArray(initialGuess) && initialGuess.length >= 5) candidates.push(wrapJointVector(initialGuess.slice(0, 5)));
+	if (Array.isArray(initialGuess) && initialGuess.length >= 4) candidates.push(wrapJointVector(initialGuess.slice(0, 4)));
 	const down = createInitialJointGuess(targetMatrix, { elbow: 'down' }); if (down) candidates.push(down);
 	const up = createInitialJointGuess(targetMatrix, { elbow: 'up' }); if (up) candidates.push(up);
-	candidates.push([0, 0, 0, 0, 0]);
-	const base = down || up || [0, 0, 0, 0, 0];
+	candidates.push([0, 0, 0, 0]);
+	const base = down || up || [0, 0, 0, 0];
 	for (let i = 0; i < 4; i++) candidates.push(base.map((q) => wrapToPi(q + (Math.random() - 0.5) * 1.0)));
 
 	let bestResult = null; let bestErr = Infinity;
@@ -211,7 +209,7 @@ export const calculateInverseKinematicsMatrix = (targetMatrix, options = {}) => 
 		const s = solveFromSeed(seed, targetMatrix, poseMask, stepSize, damping, maxIterations, tolerance);
 		if (s.converged && s.errorNorm < bestErr) {
 			bestErr = s.errorNorm;
-			bestResult = { q1: s.joints[0], q2: s.joints[1], q3: s.joints[2], q4: s.joints[3], q5: s.joints[4], reachable: true, converged: true, iterations: s.iterations, errorNorm: s.errorNorm, seedErrorNorm: s.seedErrorNorm, bestErrorNorm: s.bestErrorNorm, mask: poseMask };
+			bestResult = { q1: s.joints[0], q2: s.joints[1], q3: s.joints[2], q4: s.joints[3], reachable: true, converged: true, iterations: s.iterations, errorNorm: s.errorNorm, seedErrorNorm: s.seedErrorNorm, bestErrorNorm: s.bestErrorNorm, mask: poseMask };
 			if (s.errorNorm <= tolerance * 0.1) break;
 		}
 	}
@@ -224,7 +222,7 @@ export const calculateInverseKinematicsMatrixDegrees = (targetMatrix, options = 
 	const sol = calculateInverseKinematicsMatrix(targetMatrix, options);
 	if (!sol) return null;
 	const toDeg = (r) => r * (180 / Math.PI);
-	return { ...sol, q1: toDeg(sol.q1), q2: toDeg(sol.q2), q3: toDeg(sol.q3), q4: toDeg(sol.q4), q5: toDeg(sol.q5) };
+	return { ...sol, q1: toDeg(sol.q1), q2: toDeg(sol.q2), q3: toDeg(sol.q3), q4: toDeg(sol.q4) };
 };
 
 /* Position-only analytic IK (phi-based wrist) - returns radians or null.
@@ -235,7 +233,7 @@ export const calculateInverseKinematicsPosition = (targetMatrixOrX, yOrOptions, 
 	if (Array.isArray(targetMatrixOrX)) { const T = targetMatrixOrX; x = T[0]?.[3] ?? 0; y = T[1]?.[3] ?? 0; z = T[2]?.[3] ?? 0; options = yOrOptions || {}; }
 	else { x = parseFloat(targetMatrixOrX) || 0; if (typeof yOrOptions === 'object' && yOrOptions !== null && zIfProvided === undefined) { options = yOrOptions; y = parseFloat(options.y) || 0; z = parseFloat(options.z) || 0; } else { y = parseFloat(yOrOptions) || 0; z = parseFloat(zIfProvided) || 0; } }
 
-	const { phi = 0, q5 = 0, elbow = 'up' } = options;
+	const { phi = 0, elbow = 'up' } = options;
 	const L1 = BASE_HEIGHT, L2 = UPPER_ARM, L3 = FOREARM, L4 = WRIST;
 
 	const q1 = Math.atan2(y, x);
@@ -255,9 +253,9 @@ export const calculateInverseKinematicsPosition = (targetMatrixOrX, yOrOptions, 
 	const q2 = Math.atan2(sigma, rho) - Math.atan2(L3 * Math.sin(q3), L2 + L3 * Math.cos(q3));
 	const q4 = phi - q2 - q3;
 
-	return { q1, q2, q3, q4, q5, reachable: true, converged: true, method: 'analytic-position', phi, D: clippedD };
+	return { q1, q2, q3, q4, reachable: true, converged: true, method: 'analytic-position', phi, D: clippedD };
 };
 
 export const calculateInverseKinematicsPositionDegrees = (targetMatrixOrX, yOrOptions, zIfProvided) => {
-	const sol = calculateInverseKinematicsPosition(targetMatrixOrX, yOrOptions, zIfProvided); if (!sol) return null; const toDeg = (r) => r * (180 / Math.PI); return { ...sol, q1: toDeg(sol.q1), q2: toDeg(sol.q2), q3: toDeg(sol.q3), q4: toDeg(sol.q4), q5: toDeg(sol.q5) };
+	const sol = calculateInverseKinematicsPosition(targetMatrixOrX, yOrOptions, zIfProvided); if (!sol) return null; const toDeg = (r) => r * (180 / Math.PI); return { ...sol, q1: toDeg(sol.q1), q2: toDeg(sol.q2), q3: toDeg(sol.q3), q4: toDeg(sol.q4) };
 };

@@ -1,7 +1,174 @@
-import { useEffect } from 'react';
-import { Box, Paper, Stack, Typography, Slider, Button, Fade, Alert } from '@mui/material';
+import { useEffect, useRef, useState } from 'react';
+import { Box, Paper, Stack, Slider, Button, Fade, Alert, Popper, Grow } from '@mui/material';
 import SyncIcon from '@mui/icons-material/Sync';
 import SendIcon from '@mui/icons-material/Send';
+import FrontHandIcon from '@mui/icons-material/FrontHand';
+import CloseFullscreenIcon from '@mui/icons-material/CloseFullscreen';
+import OpenInFullIcon from '@mui/icons-material/OpenInFull';
+import { CENTEROFFSETDEG } from '../../constants/robotConstants';
+
+const GRIPPER_MIN_DEG = 0;
+const GRIPPER_MAX_DEG = CENTEROFFSETDEG;
+const GRIPPER_STEP_DEG = ((GRIPPER_MAX_DEG-GRIPPER_MIN_DEG)/7).toPrecision(1);
+
+function GripperControl({
+  disabled,
+  targetDeg,
+  onTargetChange,
+}) {
+  const buttonRef = useRef(null);
+  const closeTimerRef = useRef(null);
+  const [hovered, setHovered] = useState(false);
+  const [pinnedOpen, setPinnedOpen] = useState(false);
+  const [draftValue, setDraftValue] = useState(targetDeg);
+
+  const open = hovered || pinnedOpen;
+
+  const clearCloseTimer = () => {
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+  };
+
+  const closeIfNeeded = () => {
+    clearCloseTimer();
+    if (pinnedOpen) return;
+
+    closeTimerRef.current = setTimeout(() => setHovered(false), 90);
+  };
+
+  useEffect(() => {
+    setDraftValue(targetDeg);
+  }, [targetDeg]);
+
+  useEffect(() => {
+    if (!open) {
+      setDraftValue(targetDeg);
+    }
+  }, [open, targetDeg]);
+
+  useEffect(() => () => clearCloseTimer(), []);
+
+  useEffect(() => {
+    if (disabled) {
+      clearCloseTimer();
+      setHovered(false);
+      setPinnedOpen(false);
+    }
+  }, [disabled]);
+
+  const handleCommit = (_, value) => {
+    const nextValue = Array.isArray(value) ? value[0] : value;
+    setDraftValue(nextValue);
+    onTargetChange(nextValue);
+  };
+
+  const jumpToValue = (value) => {
+    setDraftValue(value);
+    onTargetChange(value);
+  };
+
+  return (
+    <Box sx={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+      <Button
+        ref={buttonRef}
+        onMouseEnter={() => !disabled && (clearCloseTimer(), setHovered(true))}
+        onMouseLeave={closeIfNeeded}
+        onClick={() => !disabled && setPinnedOpen((prev) => !prev)}
+        disabled={disabled}
+        size="large"
+        variant="contained"
+        aria-label="Gripper scale"
+        title="Gripper scale"
+        sx={{
+          width: 44,
+          height: 44,
+          minWidth: 44,
+          px: 0,
+          // border: '1px solid',
+          borderColor: 'divider',
+          borderRadius: 1.5,
+          boxShadow: 1,
+        }}
+      >
+        <FrontHandIcon />
+      </Button>
+      <Popper
+        open={open}
+        anchorEl={buttonRef.current}
+        placement="top"
+        transition
+        modifiers={[{ name: 'offset', options: { offset: [0, 4] } }]}
+        sx={{ zIndex: 1400 }}
+      >
+        {({ TransitionProps }) => (
+          <Grow {...TransitionProps} style={{ transformOrigin: 'center bottom' }}>
+            <Paper
+              elevation={6}
+              onMouseEnter={() => !disabled && (clearCloseTimer(), setHovered(true))}
+              onMouseLeave={closeIfNeeded}
+              sx={{
+                width: 44,
+                pt: 2,
+                pb: 2,
+                borderRadius: '14px 14px 8px 8px',
+                overflow: 'visible',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 2,
+              }}
+            >
+              <Button
+                type="button"
+                onClick={() => jumpToValue(GRIPPER_MAX_DEG)}
+                disabled={disabled}
+                aria-label={`Set gripper to ${GRIPPER_MAX_DEG}`}
+                sx={{ minWidth: 0, p: 0, lineHeight: 0, color: 'text.secondary' }}
+              >
+                <OpenInFullIcon fontSize="small" />
+              </Button>
+              <Slider
+                orientation="vertical"
+                value={draftValue}
+                onChange={(_, value) => setDraftValue(Array.isArray(value) ? value[0] : value)}
+                onChangeCommitted={handleCommit}
+                valueLabelDisplay="auto"
+                marks
+                disabled={disabled}
+                step={GRIPPER_STEP_DEG}
+                min={GRIPPER_MIN_DEG}
+                max={GRIPPER_MAX_DEG}
+                sx={{
+                  height: 130,
+                  width: 44,
+                  mx: 0,
+                  '& .MuiSlider-rail, & .MuiSlider-track': {
+                    width: 6,
+                  },
+                  '& .MuiSlider-thumb': {
+                    width: 16,
+                    height: 16,
+                  },
+                }}
+              />
+              <Button
+                type="button"
+                onClick={() => jumpToValue(GRIPPER_MIN_DEG)}
+                disabled={disabled}
+                aria-label={`Set gripper to ${GRIPPER_MIN_DEG}`}
+                sx={{ minWidth: 0, p: 0, lineHeight: 0, color: 'text.secondary' }}
+              >
+                <CloseFullscreenIcon fontSize="small" />
+              </Button>
+            </Paper>
+          </Grow>
+        )}
+      </Popper>
+    </Box>
+  );
+}
 
 export default function CommandPanel({
   connection,
@@ -10,20 +177,24 @@ export default function CommandPanel({
   hasSynced = false,
   autoSyncTrigger = 0,
   feedrate = 300,
-  onFeedrateChange = () => {},
+  onFeedrateChange = () => { },
   marks = [],
   showSpeedSlider = true,
+  gripperTargetDeg = CENTEROFFSETDEG,
   buildSendCommand = null,
   onSendAction = null,
+  onGripperAction = () => { },
   sendLabel = 'Send',
   showErrorAlert = false,
   error = null,
   // lifted syncing state from parent
   isSyncing = false,
-  setIsSyncing = () => {},
+  setIsSyncing = () => { },
 }) {
   const SYNC_RETRY_MS = 500;
   const SYNC_TIMEOUT_MS = 7000;
+  const actionDisabled = !connection.isConnected || !isTorqueEnabled || isActionButtonsLocked || !hasSynced || isSyncing;
+  const sendDisabled = actionDisabled || (!buildSendCommand && !onSendAction);
 
   useEffect(() => {
     if (!autoSyncTrigger) return;
@@ -105,22 +276,11 @@ export default function CommandPanel({
     }
   };
 
-  // Disable sending when:
-  // - no serial connection
-  // - torque is off
-  // - actions are explicitly locked (e.g., while connecting or after torque change)
-  // - we haven't synced (no position report received yet)
-  // - and there is no configured send action
-  const sendDisabled = !connection.isConnected || !isTorqueEnabled || isActionButtonsLocked || !hasSynced || (!buildSendCommand && !onSendAction);
-
   return (
     <Box sx={{ p: 3, pt: 2 }}>
       <Paper sx={{ p: 2, boxShadow: 3 }}>
         {showSpeedSlider && (
           <>
-            <Typography variant="subtitle2" sx={{ mb: 2 }}>
-              Speed (F): {feedrate}
-            </Typography>
             <Slider
               value={feedrate}
               onChange={(e, val) => onFeedrateChange(val)}
@@ -128,28 +288,32 @@ export default function CommandPanel({
               max={1000}
               step={null}
               marks={marks}
-              valueLabelDisplay="auto"
+              valueLabelDisplay="on"
               sx={{ mb: 4 }}
             />
           </>
         )}
-        <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+        <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'nowrap' }}>
           <Button
             variant="outlined"
             onClick={handleSync}
-            disabled={!connection.isConnected || isSyncing || !isTorqueEnabled || isActionButtonsLocked}
+            disabled={actionDisabled}
             size="large"
-            startIcon={<SyncIcon />}
+            aria-label="Sync"
+            title="Sync"
+            sx={{ minWidth: 44, width: 100, height: 44, px: 0 }}
           >
-            {isSyncing ? 'Syncing...' : 'Sync'}
+            <SyncIcon />
+            sync
           </Button>
+          <GripperControl disabled={actionDisabled} targetDeg={gripperTargetDeg} onTargetChange={onGripperAction} />
           <Button
             variant="contained"
             onClick={handleSend}
             disabled={sendDisabled}
-            fullWidth
             size="large"
             endIcon={<SendIcon />}
+            sx={{ flex: 1, minWidth: 0, height: 44 }}
           >
             {sendLabel}
           </Button>

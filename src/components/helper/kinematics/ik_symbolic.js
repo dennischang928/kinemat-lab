@@ -67,7 +67,7 @@ export const calculateInverseKinematicsMatrix = (targetMatrix, options = {}) => 
 		return null;
 	}
 
-	const { elbow = 'up', q5 = 0 } = options;
+	const { elbow = 'up' } = options;
 	const { x, y, z } = getPoseComponents(targetMatrix);
 	const { q1, q234 } = recoverQ1AndQ234(targetMatrix);
 
@@ -89,7 +89,6 @@ export const calculateInverseKinematicsMatrix = (targetMatrix, options = {}) => 
 		q2: wrapToPi(q2),
 		q3: wrapToPi(q3),
 		q4: wrapToPi(q4),
-		q5: wrapToPi(q5),
 		reachable: true,
 		converged: true,
 		method: 'symbolic-closed-form',
@@ -112,7 +111,6 @@ export const calculateInverseKinematicsMatrixDegrees = (targetMatrix, options = 
 		q2: toDeg(solution.q2),
 		q3: toDeg(solution.q3),
 		q4: toDeg(solution.q4),
-		q5: toDeg(solution.q5),
 	};
 };
 
@@ -120,7 +118,7 @@ export const calculateInverseKinematicsMatrixSymbolic = calculateInverseKinemati
 export const calculateInverseKinematicsMatrixSymbolicDegrees = calculateInverseKinematicsMatrixDegrees;
 
 export const calculateInverseKinematicsPositionSymbolic = (x, y, z, options = {}) => {
-	const { q234 = 0, elbow = 'up', q5 = 0 } = options;
+	const { q234 = 0, elbow = 'up' } = options;
 	const q1 = Math.atan2(y, x);
 	const radial = Math.hypot(x, y);
 	const xPlane = radial - WRIST * Math.sin(q234);
@@ -140,7 +138,6 @@ export const calculateInverseKinematicsPositionSymbolic = (x, y, z, options = {}
 		q2: wrapToPi(q2),
 		q3: wrapToPi(q3),
 		q4: wrapToPi(q4),
-		q5: wrapToPi(q5),
 		reachable: true,
 		converged: true,
 		method: 'symbolic-position',
@@ -162,7 +159,6 @@ export const calculateInverseKinematicsPositionSymbolicDegrees = (x, y, z, optio
 		q2: toDeg(solution.q2),
 		q3: toDeg(solution.q3),
 		q4: toDeg(solution.q4),
-		q5: toDeg(solution.q5),
 	};
 };
 

@@ -57,7 +57,10 @@ const PoseControl = forwardRef(function PoseControl({
     console.log('Solved joints:', solvedJoints);
     
     if (solvedJoints) {
-      setJointTargets(solvedJoints);
+      setJointTargets((prev) => ({
+        ...prev,
+        ...solvedJoints,
+      }));
       setShowErrorAlert(false);
       setError(null);
       return true;
@@ -141,7 +144,7 @@ const PoseControl = forwardRef(function PoseControl({
       return;
     }
 
-    const command = `G1 J1:${angleToSteps(jointTargets.J1)} J2:${angleToSteps(jointTargets.J2)} J3:${angleToSteps(jointTargets.J3)} J4:${angleToSteps(jointTargets.J4)} J5:${angleToSteps(jointTargets.J5)} F${feedrate}\n`;
+    const command = `G1 J1:${angleToSteps(jointTargets.J1)} J2:${angleToSteps(jointTargets.J2)} J3:${angleToSteps(jointTargets.J3)} J4:${angleToSteps(jointTargets.J4)} F${feedrate}\n`;
     const ok = await connection.sendCommandWithTimeout(command);
     if (!ok) {
       showError('No OK received from arm.');

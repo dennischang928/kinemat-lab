@@ -42,7 +42,10 @@ const Programming = forwardRef(function Programming({
     });
 
     if (solvedJoints && setJointTargets) {
-      setJointTargets(solvedJoints);
+      setJointTargets((prev) => ({
+        ...prev,
+        ...solvedJoints,
+      }));
       setShowErrorAlert(false);
       setError(null);
       return true;
@@ -69,7 +72,10 @@ const Programming = forwardRef(function Programming({
       });
 
       if (solvedJoints && setJointTargets) {
-        setJointTargets(solvedJoints);
+        setJointTargets((prev) => ({
+          ...prev,
+          ...solvedJoints,
+        }));
         setShowErrorAlert(false);
         setError(null);
         return true;
@@ -95,7 +101,10 @@ const Programming = forwardRef(function Programming({
     });
 
     if (solvedJoints && setJointTargets) {
-      setJointTargets(solvedJoints);
+      setJointTargets((prev) => ({
+        ...prev,
+        ...solvedJoints,
+      }));
       setShowErrorAlert(false);
       setError(null);
     } else {

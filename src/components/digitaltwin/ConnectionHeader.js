@@ -69,7 +69,7 @@ export default function ConnectionHeader({
             />
             <IconButton
               onClick={onConnect}
-              disabled={isConnected || isLoading}
+              disabled={isConnected || isLoading || areActionButtonsLocked}
               sx={{ color: '#4caf50' }}
               size="large"
               aria-label="connect"
@@ -78,7 +78,7 @@ export default function ConnectionHeader({
             </IconButton>
             <IconButton
               onClick={onDisconnect}
-              disabled={!isConnected || isLoading}
+              disabled={!isConnected || isLoading || areActionButtonsLocked}
               sx={{ color: '#f44336' }}
               size="large"
               aria-label="disconnect"
@@ -87,7 +87,7 @@ export default function ConnectionHeader({
             </IconButton>
             <IconButton
               onClick={onOpenBaudMenu}
-              disabled={isLoading}
+              disabled={isLoading || areActionButtonsLocked}
               size="large"
               aria-label="baud-rate-settings"
             >
@@ -101,7 +101,7 @@ export default function ConnectionHeader({
                 size="large"
                 color="primary"
                 aria-label="home"
-                disabled={!isConnected || !isTorqueEnabled || areActionButtonsLocked || !hasSynced}
+                disabled={!isConnected || areActionButtonsLocked}
               >
                 <HomeIcon />
               </IconButton>
@@ -112,7 +112,7 @@ export default function ConnectionHeader({
                 size="large"
                 color="primary"
                 aria-label="power-on"
-                disabled={!isConnected}
+                disabled={!isConnected || areActionButtonsLocked}
               >
                 <PowerIcon />
               </IconButton>

@@ -65,17 +65,18 @@ export default function useTorqueControl(connection, hasSynced, setHasSynced) {
   const handleTorqueOn = useCallback(async () => {
     if (!connection.isConnected) {
       connection.setError('Connect to a serial port before sending commands.');
-      return;
+      return false;
     }
 
     const ok = await connection.sendCommandWithTimeout('M17\n');
     if (!ok) {
-      return;
+      return false;
     }
 
     setIsTorqueEnabled(true);
     setHasSynced(false);
     unlockActionButtonsAfterTorqueOn();
+    return true;
   }, [connection, setHasSynced, unlockActionButtonsAfterTorqueOn]);
 
   const handleTorqueOff = useCallback(async () => {

@@ -1,14 +1,8 @@
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { Box, TextField, Typography, Alert, Paper, Stack, Slider } from '@mui/material';
 import { CENTEROFFSETDEG } from '../../constants/robotConstants';
 
-import DirectionsWalkIcon from '@mui/icons-material/DirectionsWalk';
-import DirectionsRunIcon from '@mui/icons-material/DirectionsRun';
-import DirectionsBikeIcon from '@mui/icons-material/DirectionsBike';
-import AirplanemodeActiveIcon from '@mui/icons-material/AirplanemodeActive';
-import RocketLaunchIcon from '@mui/icons-material/RocketLaunch';
-
-const JOINT_KEYS = ['J1', 'J2', 'J3', 'J4', 'J5'];
+const JOINT_KEYS = ['J1', 'J2', 'J3', 'J4'];
 const STEP_MIN = 0;
 const STEP_MAX = 1023;
 const DEG_PER_STEP = 0.29;
@@ -46,14 +40,6 @@ function ControlPanel({
   const readBufferRef = useRef('');
   const errorDismissTimerRef = useRef(null);
   const errorClearTimerRef = useRef(null);
-  const speedMarks = [
-    { value: 100, label: <DirectionsWalkIcon fontSize="small" /> },
-    { value: 300, label: <DirectionsRunIcon fontSize="small" /> },
-    { value: 500, label: <DirectionsBikeIcon fontSize="small" /> },
-    { value: 700, label: <AirplanemodeActiveIcon fontSize="small" /> },
-    { value: 900, label: <RocketLaunchIcon fontSize="small" /> },
-  ];
-
   const sliderSx = { width: '90%', ml: 1 };
   const inputSx = { width: '72px', '& input': { textAlign: 'center', py: '4px', fontSize: '12px' } };
 
@@ -68,7 +54,7 @@ function ControlPanel({
       return;
     }
     // Subscribe to serial text coming from the arm. We're looking for
-    // a position report matching `J1:.. J2:.. J3:.. J4:.. J5:..` which
+    // a position report matching `J1:.. J2:.. J3:.. J4:..` which
     // is emitted in response to `M114` (the sync command).
     // This is the readback side of the handshake: send sync in one
     // component, parse the position report here, and then unlock the UI.
@@ -88,16 +74,16 @@ function ControlPanel({
         }
 
         // Example position line expected from the firmware:
-        // "J1:123 J2:456 J3:789 J4:012 J5:345"
-        const match = line.match(/J1:(\d+)\s+J2:(\d+)\s+J3:(\d+)\s+J4:(\d+)\s+J5:(\d+)/);
+        // "J1:123 J2:456 J3:789 J4:012"
+        const match = line.match(/J1:(\d+)\s+J2:(\d+)\s+J3:(\d+)\s+J4:(\d+)/);
         if (match) {
-          setJointTargets({
+          setJointTargets((prev) => ({
+            ...prev,
             J1: stepsToAngle(parseInt(match[1], 10)),
             J2: stepsToAngle(parseInt(match[2], 10)),
             J3: stepsToAngle(parseInt(match[3], 10)),
             J4: stepsToAngle(parseInt(match[4], 10)),
-            J5: stepsToAngle(parseInt(match[5], 10)),
-          });
+          }));
           // Got a valid position report — mark as synced so other
           // UI parts (buttons, sliders, program controls) can enable.
           setHasSynced(true);
@@ -111,7 +97,6 @@ function ControlPanel({
     return () => unsubscribe();
   }, [isConnected, connection, setJointTargets, setError]);
   
-  const clampAngle = (value) => Math.max(ANGLE_MIN, Math.min(ANGLE_MAX, value));
   const clampFeedrateValue = (value) => Math.max(FEEDRATE_MIN, Math.min(FEEDRATE_MAX, value));
 
   const handleJointChange = (joint, value) => {
@@ -158,7 +143,7 @@ function ControlPanel({
       return;
     }
 
-    const command = `G1 J1:${angleToSteps(jointTargets.J1)} J2:${angleToSteps(jointTargets.J2)} J3:${angleToSteps(jointTargets.J3)} J4:${angleToSteps(jointTargets.J4)} J5:${angleToSteps(jointTargets.J5)} F${feedrate}\n`;
+    const command = `G1 J1:${angleToSteps(jointTargets.J1)} J2:${angleToSteps(jointTargets.J2)} J3:${angleToSteps(jointTargets.J3)} J4:${angleToSteps(jointTargets.J4)} F${feedrate}\n`;
     const ok = await sendCommandWithTimeout(command);
     if (!ok) {
       setError('No OK received from command.');

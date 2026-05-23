@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useMemo } from 'react';
+import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import { Box } from '@mui/material';
 import ControlPanel from '../digitaltwin/ControlPanel';
 import PoseControl from '../digitaltwin/PoseControl';
@@ -13,7 +13,7 @@ import usePanelResize from '../digitaltwin/hooks/usePanelResize';
 import useErrorAlert from '../digitaltwin/hooks/useErrorAlert';
 import useConnectionManager from '../digitaltwin/hooks/useConnectionManager';
 import useTorqueControl from '../digitaltwin/hooks/useTorqueControl';
-import { DEFAULT_JOINTS, SPEED_MARKS, FEEDRATE_MIN, clampFeedrate, angleToSteps } from '../../constants/robotConstants';
+import { DEFAULT_JOINTS, SPEED_MARKS, FEEDRATE_MIN, clampFeedrate, angleToSteps, CENTEROFFSETDEG, ANGLE_MAX } from '../../constants/robotConstants';
 
 function DigitalTwinView({ activeSection = 'control', onSectionChange = () => { } }) {
   // ── Core arm state ────────────────────────────────────────────────
@@ -39,10 +39,14 @@ function DigitalTwinView({ activeSection = 'control', onSectionChange = () => { 
   // components reflect when a sync is in-progress.
   const [isSyncing, setIsSyncing] = useState(false);
   const [programButtonLabel, setProgramButtonLabel] = useState('Send Program');
+  const [isHomeRecoveryActive, setIsHomeRecoveryActive] = useState(false);
 
   // ── Refs for imperative child access ──────────────────────────────
   const poseControlRef = useRef(null);
   const programmingRef = useRef(null);
+  const homeSyncStartTimerRef = useRef(null);
+  const homeSyncRetryIntervalRef = useRef(null);
+  const hasSyncedRef = useRef(hasSynced);
 
   // ── Serial connection ─────────────────────────────────────────────
   const connection = useSerialConnection();
@@ -86,27 +90,124 @@ function DigitalTwinView({ activeSection = 'control', onSectionChange = () => { 
   }, []);
 
   const buildSendCommandForJoints = useCallback(() => {
-    return `G1 J1:${angleToSteps(jointTargets.J1)} J2:${angleToSteps(jointTargets.J2)} J3:${angleToSteps(jointTargets.J3)} J4:${angleToSteps(jointTargets.J4)} J5:${angleToSteps(jointTargets.J5)} F${feedrate}\n`;
+    return `G1 J1:${angleToSteps(jointTargets.J1)} J2:${angleToSteps(jointTargets.J2)} J3:${angleToSteps(jointTargets.J3)} J4:${angleToSteps(jointTargets.J4)} F${feedrate}\n`;
   }, [jointTargets, feedrate]);
+
+  const buildGripperCommand = useCallback((targetDeg) => {
+    const numericTarget = Math.max(0, Math.min(CENTEROFFSETDEG, Number(targetDeg) || 0));
+    return {
+      targetDeg: numericTarget,
+      command: `G1 J5:${angleToSteps(numericTarget)}\n`,
+    };
+  }, []);
+
+  const handleGripperAction = useCallback(async (targetDeg) => {
+    if (!connection.isConnected) {
+      connection.setError('Connect to a serial port before sending commands.');
+      return;
+    }
+
+    if (!isTorqueEnabled || areActionButtonsLocked) {
+      connection.setError('Turn torque on before sending.');
+      return;
+    }
+
+    const { targetDeg: resolvedTargetDeg, command } = buildGripperCommand(targetDeg);
+    const ok = await connection.sendCommandWithTimeout(command);
+    if (!ok) {
+      connection.setError('No OK received from arm.');
+      return;
+    }
+
+    setJointTargets((prev) => ({
+      ...prev,
+      J5: resolvedTargetDeg,
+    }));
+  }, [areActionButtonsLocked, buildGripperCommand, connection, isTorqueEnabled, setJointTargets]);
+
+  const clearHomeRecoveryTimers = useCallback(() => {
+    if (homeSyncStartTimerRef.current) {
+      clearTimeout(homeSyncStartTimerRef.current);
+      homeSyncStartTimerRef.current = null;
+    }
+
+    if (homeSyncRetryIntervalRef.current) {
+      clearInterval(homeSyncRetryIntervalRef.current);
+      homeSyncRetryIntervalRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    hasSyncedRef.current = hasSynced;
+    if (hasSynced && isHomeRecoveryActive) {
+      clearHomeRecoveryTimers();
+      setIsHomeRecoveryActive(false);
+    }
+  }, [clearHomeRecoveryTimers, hasSynced, isHomeRecoveryActive]);
+
+  useEffect(() => () => clearHomeRecoveryTimers(), [clearHomeRecoveryTimers]);
 
   const handleHome = useCallback(async () => {
     if (!connection.isConnected) {
-      return connection.setError('Connect to a serial port before sending commands.');
+      connection.setError('Connect to a serial port before sending commands.');
+      return;
     }
-    await connection.sendCommandWithTimeout('M140\n');
-  }, [connection]);
+
+    // Reuse the existing lock/sync pipeline used by torque-on.
+    if (!isTorqueEnabled) {
+      const torqueOk = await handleTorqueOn();
+      if (!torqueOk) {
+        return;
+      }
+    }
+
+    lockActionButtons();
+    resetSyncState();
+    clearHomeRecoveryTimers();
+    setIsHomeRecoveryActive(true);
+
+    const homeOk = await connection.sendCommandWithTimeout('M140\n');
+    if (!homeOk) {
+      connection.setError('Failed to send homing command.');
+    }
+
+    homeSyncStartTimerRef.current = setTimeout(() => {
+      if (!connection.isConnected || hasSyncedRef.current) {
+        return;
+      }
+
+      triggerAutoSync();
+      homeSyncRetryIntervalRef.current = setInterval(() => {
+        if (!connection.isConnected || hasSyncedRef.current || isSyncing) {
+          return;
+        }
+        triggerAutoSync();
+      }, 1500);
+    }, 8000);
+  }, [
+    clearHomeRecoveryTimers,
+    connection,
+    handleTorqueOn,
+    isTorqueEnabled,
+    isSyncing,
+    lockActionButtons,
+    resetSyncState,
+    triggerAutoSync,
+  ]);
 
   // ── CommandPanel props (de-duplicated) ────────────────────────────
   const commandPanelProps = useMemo(() => {
     const base = {
       connection,
       isTorqueEnabled,
-      isActionButtonsLocked: areActionButtonsLocked,
+      isActionButtonsLocked: areActionButtonsLocked || isHomeRecoveryActive,
       hasSynced,
       autoSyncTrigger,
       feedrate,
       onFeedrateChange: handleFeedrateChange,
       marks: SPEED_MARKS,
+      onGripperAction: handleGripperAction,
+      gripperTargetDeg: jointTargets.J5,
     };
 
     switch (activeSection) {
@@ -121,14 +222,14 @@ function DigitalTwinView({ activeSection = 'control', onSectionChange = () => { 
             }
             return buildSendCommandForJoints();
           },
-          sendLabel: 'Send to Arm',
+          sendLabel: 'Send',
         };
       case 'pose':
         return {
           ...base,
           showSpeedSlider: true,
           buildSendCommand: buildSendCommandForJoints,
-          sendLabel: 'Send to Arm',
+          sendLabel: 'Send',
         };
       case 'programming':
         return {
@@ -152,9 +253,9 @@ function DigitalTwinView({ activeSection = 'control', onSectionChange = () => { 
         };
     }
   }, [
-    activeSection, connection, isTorqueEnabled, areActionButtonsLocked,
+    activeSection, connection, isTorqueEnabled, areActionButtonsLocked, isHomeRecoveryActive,
     hasSynced, autoSyncTrigger, feedrate, handleFeedrateChange,
-    buildSendCommandForJoints, isLinearInterpolationEnabled, programButtonLabel,
+    buildSendCommandForJoints, handleGripperAction, isLinearInterpolationEnabled, programButtonLabel,
   ]);
 
   // ── Waypoint click handler for 3D viewport ────────────────────────
@@ -203,7 +304,7 @@ function DigitalTwinView({ activeSection = 'control', onSectionChange = () => { 
           isConnected={connection.isConnected}
           isLoading={isConnectionLoading}
           isTorqueEnabled={isTorqueEnabled}
-          areActionButtonsLocked={areActionButtonsLocked}
+          areActionButtonsLocked={areActionButtonsLocked || isHomeRecoveryActive}
           hasSynced={hasSynced}
           baudRate={baudRate}
           baudMenuAnchorEl={baudMenuAnchorEl}
@@ -254,7 +355,7 @@ function DigitalTwinView({ activeSection = 'control', onSectionChange = () => { 
               setJointTargets={setJointTargets}
               connection={connection}
               isTorqueEnabled={isTorqueEnabled}
-              controlsDisabled={areActionButtonsLocked || !hasSynced}
+              controlsDisabled={areActionButtonsLocked || isHomeRecoveryActive || !hasSynced}
               onPlanChange={(plan, fallback, isInterpolationEnabled) => {
                 setInterpolationPlan(plan || []);
                 setIsLinearInterpolationEnabled(!!isInterpolationEnabled);
