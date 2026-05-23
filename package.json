@@ -24,6 +24,7 @@
     "react-scripts": "5.0.1",
     "textpath": "^1.0.2",
     "three": "^0.183.0",
+    "three-viewport-gizmo": "^2.2.0",
     "urdf-loader": "^0.12.7",
     "web-vitals": "^2.1.4",
     "xacro-parser": "^0.3.11",

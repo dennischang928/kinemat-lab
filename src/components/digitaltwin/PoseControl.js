@@ -1,13 +1,12 @@
-import { useState, useMemo, forwardRef } from 'react';
+import { useState, useMemo, forwardRef, useImperativeHandle } from 'react';
 import { Box, TextField, Paper, Stack, Typography, Slider, Checkbox } from '@mui/material';
+import * as THREE from 'three';
 import DirectionsWalkIcon from '@mui/icons-material/DirectionsWalk';
 import DirectionsRunIcon from '@mui/icons-material/DirectionsRun';
 import DirectionsBikeIcon from '@mui/icons-material/DirectionsBike';
 import AirplanemodeActiveIcon from '@mui/icons-material/AirplanemodeActive';
 import RocketLaunchIcon from '@mui/icons-material/RocketLaunch';
-import { calculateForwardKinematicsMatrixDegrees } from '../helper/kinematics/fk';
-// import { calculateInverseKinematicsMatrixDegrees } from '../helper/kinematics/ik_symbolic';
-import { calculateInverseKinematicsMatrixDegrees } from '../helper/kinematics/ik';
+import useKinematics from './hooks/useKinematics';
 const FEEDRATE_MIN = 10;
 const FEEDRATE_MAX = 1000;
 const XYZ_MIN = -0.3;
@@ -18,48 +17,22 @@ const STEP = 0.001;
 const STEP_MAX = 1023;
 const DEG_PER_STEP = 0.29;
 const angleToSteps = (deg) => Math.round(Math.max(0, Math.min(STEP_MAX, deg / DEG_PER_STEP)));
-const RAD_TO_DEG = 180 / Math.PI;
-const DEG_TO_RAD = Math.PI / 180;
-
-const matrixToPose = (T) => {
-  const x = T?.[0]?.[3] ?? 0;
-  const y = T?.[1]?.[3] ?? 0;
-  const z = T?.[2]?.[3] ?? 0;
-
-  const pitch = Math.atan2(-T[2][0], Math.sqrt(T[2][1]**2 + T[2][2]**2));
-  const roll  = Math.atan2(T[2][1], T[2][2]);
-  const yaw   = Math.atan2(T[1][0], T[0][0]);
-  return { x, y, z, roll: roll * RAD_TO_DEG, pitch: pitch * RAD_TO_DEG, yaw: yaw * RAD_TO_DEG };
-};
-
-const poseToMatrix = ({ x = 0, y = 0, z = 0, roll = 0, pitch = 0, yaw = 0 }) => {
-  const r = roll * DEG_TO_RAD;
-  const p = pitch * DEG_TO_RAD;
-  const yRad = yaw * DEG_TO_RAD;
-
-  const cr = Math.cos(r);
-  const sr = Math.sin(r);
-  const cp = Math.cos(p);
-  const sp = Math.sin(p);
-  const cy = Math.cos(yRad);
-  const sy = Math.sin(yRad);
-
-  return [
-    [cy * cp, cy * sp * sr - sy * cr, cy * sp * cr + sy * sr, x],
-    [sy * cp, sy * sp * sr + cy * cr, sy * sp * cr - cy * sr, y],
-    [-sp, cp * sr, cp * cr, z],
-    [0, 0, 0, 1],
-  ];
-};
 
 const ORIENTATION_MIN = -180;
 const ORIENTATION_MAX = 180;
 const ORIENTATION_STEP = 1;
 
-const PoseControl = forwardRef(function PoseControl({ jointTargets, setJointTargets, connection, isTorqueEnabled = true, onPlanChange = null }, ref) {
+const PoseControl = forwardRef(function PoseControl({
+  jointTargets,
+  setJointTargets,
+  connection,
+  isTorqueEnabled = true,
+  onPlanChange = null,
+  kinematicMask = { x: true, y: true, z: true, roll: false, pitch: false, yaw: false },
+  onKinematicMaskChange = null,
+}, ref) {
+  const { getPoseFromJoints, solveJointsFromPose } = useKinematics();
   const [feedrate, setFeedrate] = useState(300);
-  const [positionMask, setPositionMask] = useState({ x: true, y: true, z: true });
-  const [orientationMask, setOrientationMask] = useState({ roll: false, pitch: false, yaw: false });
   const [showErrorAlert, setShowErrorAlert] = useState(false);
   const [error, setError] = useState(null);
 
@@ -72,78 +45,75 @@ const PoseControl = forwardRef(function PoseControl({ jointTargets, setJointTarg
   ];
 
   const currentPose = useMemo(() => {
-    if (!jointTargets) return { x: 0.062, y: 0, z: 0.142, roll: 0, pitch: 0, yaw: 0 };
-    const centerOffsetDeg = 148.335;
-    const q1 = (jointTargets.J1 || 0) - centerOffsetDeg;
-    const q2 = (jointTargets.J2 || 0) - centerOffsetDeg;
-    const q3 = (jointTargets.J3 || 0) - centerOffsetDeg;
-    const q4 = (jointTargets.J4 || 0) - centerOffsetDeg;
-    const q5 = (jointTargets.J5 || 0) - centerOffsetDeg;
-
-    const T = calculateForwardKinematicsMatrixDegrees({ q1, q2, q3, q4, q5 });
-
-    return matrixToPose(T);
-  }, [jointTargets]);
+    return getPoseFromJoints(jointTargets);
+  }, [jointTargets, getPoseFromJoints]);
 
   const solvePoseChange = (nextPose, mask, failureMessage) => {
     if (!jointTargets || !setJointTargets) {
-      return;
+      return false;
     }
 
-    const targetMatrix = poseToMatrix(nextPose);
-    const centerOffsetDeg = 148.335;
-    const seedQ1 = ((jointTargets.J1 || 0) - centerOffsetDeg) * DEG_TO_RAD;
-    const seedQ2 = ((jointTargets.J2 || 0) - centerOffsetDeg) * DEG_TO_RAD;
-    const seedQ3 = ((jointTargets.J3 || 0) - centerOffsetDeg) * DEG_TO_RAD;
-    const seedQ4 = ((jointTargets.J4 || 0) - centerOffsetDeg) * DEG_TO_RAD;
-    const seedQ5 = ((jointTargets.J5 || 0) - centerOffsetDeg) * DEG_TO_RAD;
-
-    let solution = calculateInverseKinematicsMatrixDegrees(targetMatrix, {
-      mask,
-      initialGuess: [seedQ1, seedQ2, seedQ3, seedQ4, seedQ5],
-      optimizeToGuess: [seedQ1, seedQ2, seedQ3, seedQ4, seedQ5],
-    });
-
-    if (!solution || !solution.converged) {
-      solution = calculateInverseKinematicsMatrixDegrees(targetMatrix, { mask });
-    }
-
-    if (solution && solution.converged) {
-      setJointTargets({
-        J1: solution.q1 + centerOffsetDeg,
-        J2: solution.q2 + centerOffsetDeg,
-        J3: solution.q3 + centerOffsetDeg,
-        J4: solution.q4 + centerOffsetDeg,
-        J5: solution.q5 + centerOffsetDeg,
-      });
+    const solvedJoints = solveJointsFromPose(nextPose, jointTargets, { mask });
+    console.log('Solved joints:', solvedJoints);
+    
+    if (solvedJoints) {
+      setJointTargets(solvedJoints);
       setShowErrorAlert(false);
       setError(null);
-      return;
-    }
+      return true;
+    } 
+    return false;
 
     setError(failureMessage);
     setShowErrorAlert(true);
     setTimeout(() => setShowErrorAlert(false), 5000);
   };
 
+  const handleSceneTransformation = (scenePose = {}) => {
+    const position = scenePose?.position ?? scenePose;
+    const quaternion = scenePose?.quaternion;
+    const euler = quaternion ? new THREE.Euler().setFromQuaternion(quaternion, 'XYZ') : null;
+    const nextPose = {
+      ...currentPose, // Start with current pose as base (in order to reach a solution cloest to this pose)
+      x: position?.x ?? currentPose.x,
+      y: position?.y ?? currentPose.y,
+      z: position?.z ?? currentPose.z,
+      roll: euler ? euler.x * (180 / Math.PI) : currentPose.roll,
+      pitch: euler ? euler.y * (180 / Math.PI) : currentPose.pitch,
+      yaw: euler ? euler.z * (180 / Math.PI) : currentPose.yaw,
+    };
+    
+    return solvePoseChange(
+      nextPose,
+      [kinematicMask.x, kinematicMask.y, kinematicMask.z, kinematicMask.roll, kinematicMask.pitch, kinematicMask.yaw],
+      'No solution — pose unreachable',
+    );
+  };
+
   const handlePoseChange = (axis, value) => {
     const numeric = parseFloat(value) || 0;
     const nextPose = { ...currentPose, [axis]: numeric };
-    solvePoseChange(nextPose, [positionMask.x, positionMask.y, positionMask.z, orientationMask.roll, orientationMask.pitch, orientationMask.yaw], 'No solution — pose unreachable');
+    solvePoseChange(nextPose, [kinematicMask.x, kinematicMask.y, kinematicMask.z, kinematicMask.roll, kinematicMask.pitch, kinematicMask.yaw], 'No solution — pose unreachable');
   };
 
-  // const handleOrientationChange = (axis, value) => {
-  //   const numeric = parseFloat(value) || 0;
-  //   const nextPose = { ...currentPose, [axis]: numeric };
-  //   solvePoseChange(nextPose, [false, false, false,
-  // };
-
   const handleOrientationMaskChange = (axis) => {
-    setOrientationMask((prev) => ({ ...prev, [axis]: !prev[axis] }));
+    const nextMask = {
+      ...kinematicMask,
+      [axis]: !kinematicMask[axis],
+    };
+    if (typeof onKinematicMaskChange === 'function') {
+      onKinematicMaskChange(nextMask);
+    }
   };
 
   const handlePositionMaskChange = (axis) => {
-    setPositionMask((prev) => ({ ...prev, [axis]: !prev[axis] }));
+    const nextMask = {
+      ...kinematicMask,
+      [axis]: !kinematicMask[axis],
+    };
+    if (typeof onKinematicMaskChange === 'function') {
+      onKinematicMaskChange(nextMask);
+    }
   };
 
   const handleFeedrateChange = (value) => {
@@ -178,6 +148,12 @@ const PoseControl = forwardRef(function PoseControl({ jointTargets, setJointTarg
     }
   };
 
+  useImperativeHandle(ref, () => ({
+    setCurrentStepIndex: () => {},
+    
+    handleSceneTransformation,
+  }), [ handleSceneTransformation]);
+
   const sliderSx = { width: '90%', ml: 1 };
   const inputSx = { width: '72px', '& input': { textAlign: 'center', py: '4px', fontSize: '12px' } };
 
@@ -202,7 +178,7 @@ const PoseControl = forwardRef(function PoseControl({ jointTargets, setJointTarg
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                       <Checkbox
                         size="small"
-                        checked={positionMask[axis]}
+                        checked={kinematicMask[axis]}
                         onChange={() => handlePositionMaskChange(axis)}
                         inputProps={{ 'aria-label': `${axis} position mask` }}
                         sx={{ p: 0.25 }}
@@ -249,7 +225,7 @@ const PoseControl = forwardRef(function PoseControl({ jointTargets, setJointTarg
 
                     <Checkbox
                       size="small"
-                      checked={orientationMask[axis]}
+                      checked={kinematicMask[axis]}
                       onChange={() => handleOrientationMaskChange(axis)}
                       inputProps={{ 'aria-label': `${axis} orientation mask` }}
                       sx={{ p: 0.25 }}

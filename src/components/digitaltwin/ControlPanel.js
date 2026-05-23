@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Box, TextField, Typography, Alert, Paper, Stack, Slider } from '@mui/material';
-
-
+import { CENTEROFFSETDEG } from '../../constants/robotConstants';
 
 import DirectionsWalkIcon from '@mui/icons-material/DirectionsWalk';
 import DirectionsRunIcon from '@mui/icons-material/DirectionsRun';
@@ -15,10 +14,14 @@ const STEP_MAX = 1023;
 const DEG_PER_STEP = 0.29;
 const ANGLE_MIN = 0;
 const ANGLE_MAX = parseFloat((STEP_MAX * DEG_PER_STEP).toFixed(2)); // ~296.67°
+const DISPLAY_CENTER = CENTEROFFSETDEG;
+const DISPLAY_MIN = -DISPLAY_CENTER;
+const DISPLAY_MAX = DISPLAY_CENTER;
 const angleToSteps = (deg) => Math.round(Math.max(STEP_MIN, Math.min(STEP_MAX, deg / DEG_PER_STEP)));
 const stepsToAngle = (steps) => parseFloat((steps * DEG_PER_STEP).toFixed(2));
 const FEEDRATE_MIN = 10;
 const FEEDRATE_MAX = 1000;
+
 
 function ControlPanel({
   jointTargets,
@@ -53,6 +56,9 @@ function ControlPanel({
 
   const sliderSx = { width: '90%', ml: 1 };
   const inputSx = { width: '72px', '& input': { textAlign: 'center', py: '4px', fontSize: '12px' } };
+
+  const getDisplayedJointValue = (joint) => parseFloat((jointTargets[joint] - DISPLAY_CENTER).toFixed(2));
+  const clampDisplayedAngle = (value) => Math.max(DISPLAY_MIN, Math.min(DISPLAY_MAX, value));
 
   useEffect(() => {
     if (!isConnected) {
@@ -109,10 +115,10 @@ function ControlPanel({
   const clampFeedrateValue = (value) => Math.max(FEEDRATE_MIN, Math.min(FEEDRATE_MAX, value));
 
   const handleJointChange = (joint, value) => {
-    const numeric = clampAngle(parseFloat(value) || 0);
+    const numeric = clampDisplayedAngle(parseFloat(value) || 0);
     setJointTargets((prev) => ({
       ...prev,
-      [joint]: parseFloat(numeric.toFixed(2)),
+      [joint]: parseFloat((numeric + DISPLAY_CENTER).toFixed(2)),
     }));
   };
 
@@ -182,10 +188,10 @@ function ControlPanel({
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <Typography variant="body2" fontFamily="monospace">{joint}:</Typography>
                     <Slider
-                      min={ANGLE_MIN}
-                      max={ANGLE_MAX}
+                      min={DISPLAY_MIN}
+                      max={DISPLAY_MAX}
                       step={DEG_PER_STEP}
-                      value={jointTargets[joint]}
+                      value={getDisplayedJointValue(joint)}
                       onChange={(e, val) => handleJointChange(joint, val)}
                       size="small"
                       sx={{ ...sliderSx, flex: 1, ml: 0 }}
@@ -193,8 +199,8 @@ function ControlPanel({
                     <TextField
                       type="number"
                       size="small"
-                      inputProps={{ min: ANGLE_MIN, max: ANGLE_MAX, step: DEG_PER_STEP }}
-                      value={jointTargets[joint]}
+                      inputProps={{ min: DISPLAY_MIN, max: DISPLAY_MAX, step: DEG_PER_STEP }}
+                      value={getDisplayedJointValue(joint)}
                       onChange={(e) => handleJointChange(joint, e.target.value)}
                       sx={inputSx}
                     />
