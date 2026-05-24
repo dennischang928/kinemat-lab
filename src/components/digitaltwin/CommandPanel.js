@@ -276,6 +276,32 @@ export default function CommandPanel({
     }
   };
 
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (event.defaultPrevented) return;
+      if (event.repeat) return;
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+
+      const target = event.target;
+      const isEditableTarget = target instanceof HTMLElement && (
+        target.tagName === 'INPUT'
+        || target.tagName === 'TEXTAREA'
+        || target.tagName === 'SELECT'
+        || target.isContentEditable
+      );
+
+      if (isEditableTarget) return;
+      if (event.key?.toLowerCase() !== 's') return;
+      if (sendDisabled) return;
+
+      event.preventDefault();
+      handleSend();
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleSend, sendDisabled]);
+
   return (
     <Box sx={{ p: 3, pt: 2 }}>
       <Paper sx={{ p: 2, boxShadow: 3 }}>

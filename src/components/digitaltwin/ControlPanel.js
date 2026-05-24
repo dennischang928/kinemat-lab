@@ -20,6 +20,7 @@ const FEEDRATE_MAX = 1000;
 function ControlPanel({
   jointTargets,
   setJointTargets,
+  setJointTargetsFromHardware = setJointTargets,
   connection,
   feedrate = 300,
   setFeedrate = () => { },
@@ -77,7 +78,7 @@ function ControlPanel({
         // "J1:123 J2:456 J3:789 J4:012"
         const match = line.match(/J1:(\d+)\s+J2:(\d+)\s+J3:(\d+)\s+J4:(\d+)/);
         if (match) {
-          setJointTargets((prev) => ({
+          setJointTargetsFromHardware((prev) => ({
             ...prev,
             J1: stepsToAngle(parseInt(match[1], 10)),
             J2: stepsToAngle(parseInt(match[2], 10)),
@@ -95,7 +96,7 @@ function ControlPanel({
     // ensure the reading loop is started
     connection.startReading();
     return () => unsubscribe();
-  }, [isConnected, connection, setJointTargets, setError]);
+  }, [isConnected, connection, setJointTargetsFromHardware, setError]);
   
   const clampFeedrateValue = (value) => Math.max(FEEDRATE_MIN, Math.min(FEEDRATE_MAX, value));
 
@@ -110,44 +111,6 @@ function ControlPanel({
   const handleFeedrateChange = (value) => {
     const numeric = clampFeedrateValue(parseInt(value, 10) || 0);
     setFeedrate(numeric);
-  };
-
-  const sendCommandWithTimeout = async (command, { waitForOk = true } = {}) => {
-    if (!isConnected) {
-      setError('Connect to a serial port before sending commands.');
-      return false;
-    }
-
-    const writeOk = await connection.sendCommandWithTimeout(command, { waitForOk });
-    if (!writeOk) {
-      setError('No OK received from command.');
-      return false;
-    }
-    return true;
-  };
-
-
-  const handleSendSliders = async () => {
-    if (!isConnected) {
-      setError('Connect to a serial port before sending.');
-      return;
-    }
-
-    if (!isTorqueEnabled) {
-      setError('Turn torque on before sending moves.');
-      return;
-    }
-
-    if (!hasSynced) {
-      setError('Sync from the arm before sending slider values.');
-      return;
-    }
-
-    const command = `G1 J1:${angleToSteps(jointTargets.J1)} J2:${angleToSteps(jointTargets.J2)} J3:${angleToSteps(jointTargets.J3)} J4:${angleToSteps(jointTargets.J4)} F${feedrate}\n`;
-    const ok = await sendCommandWithTimeout(command);
-    if (!ok) {
-      setError('No OK received from command.');
-    }
   };
 
 

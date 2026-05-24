@@ -35,7 +35,7 @@ POSSIBILITY OF SUCH DAMAGE.
   <xacro:include filename="$(find pincher_arm_description)/urdf/arm_hardware.xacro"/>
 
   <material name="White">
-    <color rgba="5 5 5 2.0"/>
+    <color rgba="2 2 2 2.0"/>
   </material>
   <material name="Black">
     <color rgba="0.2 0.2 0.2 1.0"/>

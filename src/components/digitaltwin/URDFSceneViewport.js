@@ -23,6 +23,7 @@ const DEFAULT_VIEW_SETTINGS = {
   autoReconnect: false,
   logOutput: false,
   useWorldTranslation: false,
+  realTime: false,
 };
 
 /** Servo degree range used to center joint angles. 296.67° total, mid = 148.335° */
@@ -155,15 +156,24 @@ const buildScenePoseFromFkMatrix = (fkMatrixValues) => {
 const readMeshWorldPose = (mesh) => {
   const worldPos = new THREE.Vector3();
   const worldQuat = new THREE.Quaternion();
+  
+  // Rotate the world coordinates from Three.js (Y-up) to ROS (Z-up).
+  const rosFrameRotation = new THREE.Quaternion().setFromAxisAngle(
+    new THREE.Vector3(1, 0, 0),
+    Math.PI / 2,
+  );
 
   if (mesh) {
     mesh.getWorldPosition(worldPos);
     mesh.getWorldQuaternion(worldQuat);
   }
 
+  worldPos.applyQuaternion(rosFrameRotation);
+  worldQuat.premultiply(rosFrameRotation);
+
   return {
-    // Remap Y-up → Z-up: scene Y becomes ROS Z, scene -Z becomes ROS Y.
-    position: { x: worldPos.x, y: -worldPos.z, z: worldPos.y },
+    // Rotate Three.js Y-up coordinates into ROS Z-up coordinates with +90° about X.
+    position: { x: worldPos.x, y: worldPos.y, z: worldPos.z },
     quaternion: worldQuat,
   };
 };
@@ -312,7 +322,7 @@ function SceneContent({
   return (
     <>
       {/* Scene background & lighting */}
-      <color attach="background" args={['#CFCFCF']} />
+      <color attach="background" args={['#fffff']} />
       <ambientLight intensity={0.55} />
       <directionalLight position={[8, 10, 6]} intensity={0.8} castShadow />
       <pointLight position={[-8, 4, -6]} intensity={0.25} />
@@ -379,9 +389,9 @@ function SceneContent({
           showX={kinematicMask.x}//&&
           showY={kinematicMask.y}//&&
           showZ={kinematicMask.z}//&&
-          onMouseDown={lockOrbit}
-          onObjectChange={() => handleTransformControlObjectChange(meshRef)}
-          onMouseUp={unlockOrbit}
+          onMouseDown={useWorldTranslation? lockOrbit : null}
+          onObjectChange={useWorldTranslation ? () => handleTransformControlObjectChange(meshRef) : null}
+          onMouseUp={useWorldTranslation? unlockOrbit: () => handleTransformControlObjectChange(meshRef) }
         />
       )}
       {showTransformControls && handleReady && (
@@ -544,6 +554,7 @@ function URDFSceneViewport({
   onTransformControlChange,
   onSceneTransformation,
   kinematicMask,
+  onRealTimeChange = () => {},
 }) {
   const { getForwardMatrixFromJoints } = useKinematics();
   const controlsRef = useRef(null);
@@ -609,6 +620,10 @@ function URDFSceneViewport({
       ...prev,
       [key]: value,
     }));
+
+    if (key === 'realTime') {
+      onRealTimeChange(value);
+    }
   };
 
   // ── Derived state ──────────────────────────────────────────────────────────
@@ -782,6 +797,18 @@ function URDFSceneViewport({
             <FormControlLabel
               control={
                 <Switch
+                  checked={viewportSettings.realTime}
+                  onChange={(e) => updateSetting('realTime', e.target.checked)}
+                />
+              }
+               label="Set real-time"
+            />
+
+            <Divider />
+
+            <FormControlLabel
+              control={
+                <Switch
                   checked={viewportSettings.autoReconnect}
                   onChange={(e) => updateSetting('autoReconnect', e.target.checked)}
                 />
@@ -795,7 +822,7 @@ function URDFSceneViewport({
                   onChange={(e) => updateSetting('logOutput', e.target.checked)}
                 />
               }
-              label="Lock serial output"
+              label="Log serial output"
             />
           </Stack>
         </Paper>

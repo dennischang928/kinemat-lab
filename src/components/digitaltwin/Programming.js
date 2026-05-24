@@ -16,6 +16,7 @@ const STEP = 0.001;
 const Programming = forwardRef(function Programming({
   jointTargets,
   setJointTargets,
+  setJointTargetsForPreview = setJointTargets,
   connection,
   isTorqueEnabled = true,
   onPlanChange = null,
@@ -209,7 +210,7 @@ const Programming = forwardRef(function Programming({
               currentPos={currentPos}
               jointTargets={jointTargets}
               feedrate={feedrate}
-              setJointTargets={setJointTargets}
+              setJointTargets={setJointTargetsForPreview}
               setFeedrate={setFeedrate}
               connection={connection}
               isTorqueEnabled={isTorqueEnabled}

@@ -14,9 +14,6 @@ const XYZ_MAX = 0.3;
 const Z_MIN = 0;
 const Z_MAX = 0.4;
 const STEP = 0.001;
-const STEP_MAX = 1023;
-const DEG_PER_STEP = 0.29;
-const angleToSteps = (deg) => Math.round(Math.max(0, Math.min(STEP_MAX, deg / DEG_PER_STEP)));
 
 const ORIENTATION_MIN = -180;
 const ORIENTATION_MAX = 180;
@@ -85,7 +82,7 @@ const PoseControl = forwardRef(function PoseControl({
       pitch: euler ? euler.y * (180 / Math.PI) : currentPose.pitch,
       yaw: euler ? euler.z * (180 / Math.PI) : currentPose.yaw,
     };
-    
+    console.log("Mask", kinematicMask);
     return solvePoseChange(
       nextPose,
       [kinematicMask.x, kinematicMask.y, kinematicMask.z, kinematicMask.roll, kinematicMask.pitch, kinematicMask.yaw],
@@ -133,23 +130,6 @@ const PoseControl = forwardRef(function PoseControl({
     showError('Sync feature coming soon');
   };
 
-  const handleSendSliders = async () => {
-    if (!connection?.isConnected) {
-      showError('Connect to a serial port first.');
-      return;
-    }
-
-    if (!isTorqueEnabled) {
-      showError('Turn torque on before sending.');
-      return;
-    }
-
-    const command = `G1 J1:${angleToSteps(jointTargets.J1)} J2:${angleToSteps(jointTargets.J2)} J3:${angleToSteps(jointTargets.J3)} J4:${angleToSteps(jointTargets.J4)} F${feedrate}\n`;
-    const ok = await connection.sendCommandWithTimeout(command);
-    if (!ok) {
-      showError('No OK received from arm.');
-    }
-  };
 
   useImperativeHandle(ref, () => ({
     setCurrentStepIndex: () => {},

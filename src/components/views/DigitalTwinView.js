@@ -12,7 +12,9 @@ import usePanelResize from '../digitaltwin/hooks/usePanelResize';
 import useErrorAlert from '../digitaltwin/hooks/useErrorAlert';
 import useConnectionManager from '../digitaltwin/hooks/useConnectionManager';
 import useTorqueControl from '../digitaltwin/hooks/useTorqueControl';
+import useRealtimeJointMirror from '../digitaltwin/hooks/useRealtimeJointMirror';
 import { DEFAULT_JOINTS, SPEED_MARKS, FEEDRATE_MIN, clampFeedrate, angleToSteps, CENTEROFFSETDEG, ANGLE_MAX } from '../../constants/robotConstants';
+
 
 function DigitalTwinView({ activeSection = 'control', onSectionChange = () => { } }) {
   // ── Core arm state ────────────────────────────────────────────────
@@ -21,6 +23,7 @@ function DigitalTwinView({ activeSection = 'control', onSectionChange = () => { 
   const [isLinearInterpolationEnabled, setIsLinearInterpolationEnabled] = useState(false);
   const [feedrate, setFeedrate] = useState(300);
   const [hasSynced, setHasSynced] = useState(false);
+  const [isRealTimeEnabled, setIsRealTimeEnabled] = useState(false);
   const [kinematicMask, setKinematicMask] = useState({
     x: true,
     y: true,
@@ -46,6 +49,7 @@ function DigitalTwinView({ activeSection = 'control', onSectionChange = () => { 
   const homeSyncStartTimerRef = useRef(null);
   const homeSyncRetryIntervalRef = useRef(null);
   const hasSyncedRef = useRef(hasSynced);
+  const jointTargetsRef = useRef(jointTargets);
 
   // ── Serial connection ─────────────────────────────────────────────
   const connection = useSerialConnection();
@@ -67,6 +71,12 @@ function DigitalTwinView({ activeSection = 'control', onSectionChange = () => { 
     lockActionButtons,
   } = useTorqueControl(connection, hasSynced, setHasSynced);
 
+  const { queueRealtimeMirror } = useRealtimeJointMirror({
+    connection,
+    isTorqueEnabled,
+    enabled: isRealTimeEnabled,
+  });
+
   const {
     baudRate,
     isLoading: isConnectionLoading,
@@ -87,6 +97,31 @@ function DigitalTwinView({ activeSection = 'control', onSectionChange = () => { 
     const numeric = clampFeedrate(parseInt(value, 10) || FEEDRATE_MIN);
     setFeedrate(numeric);
   }, []);
+
+  useEffect(() => {
+    jointTargetsRef.current = jointTargets;
+  }, [jointTargets]);
+
+  const commitJointTargets = useCallback((updater, { mirrorRealtime = false } = {}) => {
+    const nextTargets = typeof updater === 'function'
+      ? updater(jointTargetsRef.current)
+      : updater;
+
+    jointTargetsRef.current = nextTargets;
+    setJointTargets(nextTargets);
+
+    if (mirrorRealtime) {
+      queueRealtimeMirror(nextTargets);
+    }
+  }, [queueRealtimeMirror]);
+
+  const commitUserJointTargets = useCallback((updater) => {
+    commitJointTargets(updater, { mirrorRealtime: true });
+  }, [commitJointTargets]);
+
+  const commitExternalJointTargets = useCallback((updater) => {
+    commitJointTargets(updater, { mirrorRealtime: false });
+  }, [commitJointTargets]);
 
   const buildSendCommandForJoints = useCallback(() => {
     return `G1 J1:${angleToSteps(jointTargets.J1)} J2:${angleToSteps(jointTargets.J2)} J3:${angleToSteps(jointTargets.J3)} J4:${angleToSteps(jointTargets.J4)} F${feedrate}\n`;
@@ -118,11 +153,11 @@ function DigitalTwinView({ activeSection = 'control', onSectionChange = () => { 
       return;
     }
 
-    setJointTargets((prev) => ({
+    commitExternalJointTargets((prev) => ({
       ...prev,
       J5: resolvedTargetDeg,
     }));
-  }, [areActionButtonsLocked, buildGripperCommand, connection, isTorqueEnabled, setJointTargets]);
+  }, [areActionButtonsLocked, buildGripperCommand, commitExternalJointTargets, connection, isTorqueEnabled]);
 
   const clearHomeRecoveryTimers = useCallback(() => {
     if (homeSyncStartTimerRef.current) {
@@ -323,7 +358,8 @@ function DigitalTwinView({ activeSection = 'control', onSectionChange = () => { 
           <Box sx={{ display: activeSection === 'control' ? 'block' : 'none', height: '100%' }}>
             <ControlPanel
               jointTargets={jointTargets}
-              setJointTargets={setJointTargets}
+              setJointTargets={commitUserJointTargets}
+              setJointTargetsFromHardware={commitExternalJointTargets}
               connection={connection}
               feedrate={feedrate}
               setFeedrate={setFeedrate}
@@ -339,7 +375,7 @@ function DigitalTwinView({ activeSection = 'control', onSectionChange = () => { 
             <PoseControl
               ref={poseControlRef}
               jointTargets={jointTargets}
-              setJointTargets={setJointTargets}
+              setJointTargets={commitUserJointTargets}
               connection={connection}
               isTorqueEnabled={isTorqueEnabled}
               onPlanChange={(plan) => setInterpolationPlan(plan || [])}
@@ -351,7 +387,8 @@ function DigitalTwinView({ activeSection = 'control', onSectionChange = () => { 
             <Programming
               ref={programmingRef}
               jointTargets={jointTargets}
-              setJointTargets={setJointTargets}
+              setJointTargets={commitUserJointTargets}
+              setJointTargetsForPreview={commitExternalJointTargets}
               connection={connection}
               isTorqueEnabled={isTorqueEnabled}
               controlsDisabled={areActionButtonsLocked || isHomeRecoveryActive || !hasSynced}
@@ -402,12 +439,13 @@ function DigitalTwinView({ activeSection = 'control', onSectionChange = () => { 
       >
         <URDFSceneViewport
           jointTargets={jointTargets}
-          setJointTargets={setJointTargets}
+          setJointTargets={commitUserJointTargets}
           showTransformControls={activeSection === 'pose' || activeSection === 'programming'}
           interpolationPlan={interpolationPlan}
           onWaypointClick={handleWaypointClick}
           onSceneTransformation={handleSceneTransformation}
           kinematicMask={activeSection === 'pose' ? kinematicMask : { x: true, y: true, z: true, roll: false, pitch: true, yaw: false }}
+          onRealTimeChange={setIsRealTimeEnabled}
         />
       </Box>
     </Box>
