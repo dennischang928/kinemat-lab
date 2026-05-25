@@ -22,7 +22,7 @@ const DEFAULT_VIEW_SETTINGS = {
   showAxes: true,
   autoReconnect: false,
   logOutput: false,
-  useWorldTranslation: false,
+  useWorldTranslation: true,
   realTime: false,
 };
 

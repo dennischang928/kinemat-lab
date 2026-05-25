@@ -51,7 +51,7 @@ const PoseControl = forwardRef(function PoseControl({
     }
 
     const solvedJoints = solveJointsFromPose(nextPose, jointTargets, { mask });
-    console.log('Solved joints:', solvedJoints);
+    // console.log('Solved joints:', solvedJoints);
     
     if (solvedJoints) {
       setJointTargets((prev) => ({
@@ -70,7 +70,7 @@ const PoseControl = forwardRef(function PoseControl({
   };
 
   const handleSceneTransformation = (scenePose = {}) => {
-    const position = scenePose?.position ?? scenePose;
+    const position = scenePose?.position;
     const quaternion = scenePose?.quaternion;
     const euler = quaternion ? new THREE.Euler().setFromQuaternion(quaternion, 'XYZ') : null;
     const nextPose = {
@@ -82,7 +82,7 @@ const PoseControl = forwardRef(function PoseControl({
       pitch: euler ? euler.y * (180 / Math.PI) : currentPose.pitch,
       yaw: euler ? euler.z * (180 / Math.PI) : currentPose.yaw,
     };
-    console.log("Mask", kinematicMask);
+    // console.log("Mask", kinematicMask);
     return solvePoseChange(
       nextPose,
       [kinematicMask.x, kinematicMask.y, kinematicMask.z, kinematicMask.roll, kinematicMask.pitch, kinematicMask.yaw],

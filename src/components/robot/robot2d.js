@@ -49,27 +49,24 @@ const Robot2d = ({ angles, onAngleChange, selectedStep = 4, selectedJoint = 1, s
     // Step 1: rotation only (1 unit), Steps 2-3: translate+rotate (2 units each), Step 4: translation only (1 unit)
     // Play all: 1 + 2 + 2 + 1 = 6 units over 18 seconds
     const DURATION = selectedJoint === 0 ? 18000 : 4000;
+    const totalProgress = selectedJoint === 0 ? 6 : (selectedJoint === 4 ? 1 : (selectedJoint === 1 ? 1 : 2));
+    const shouldLoop = selectedJoint === 0;
 
     const animate = (time) => {
       if (!startTime) startTime = time;
       const elapsed = time - startTime;
 
-      if (selectedJoint === 0) {
-        // Full sequence: 0 to 6 total progress
-        const totalProgress = (elapsed % DURATION) / (DURATION / 6);
-        setAnimProgress(totalProgress);
-      } else if (selectedJoint === 1) {
-        // Rotation only: progress 0 to 1
-        const progress = (elapsed % DURATION) / DURATION;
-        setAnimProgress(progress);
-      } else if (selectedJoint === 4) {
-        // Final translation only: progress 0 to 1
-        const progress = (elapsed % DURATION) / DURATION;
+      if (shouldLoop) {
+        const progress = (elapsed % DURATION) / (DURATION / totalProgress);
         setAnimProgress(progress);
       } else {
-        // Translate then rotate: progress 0 to 2
-        const progress = (elapsed % DURATION) / (DURATION / 2);
+        const progress = Math.min(elapsed / DURATION, 1) * totalProgress;
         setAnimProgress(progress);
+
+        if (elapsed >= DURATION) {
+          animationRef.current = null;
+          return;
+        }
       }
 
       animationRef.current = requestAnimationFrame(animate);
@@ -627,128 +624,6 @@ const Robot2d = ({ angles, onAngleChange, selectedStep = 4, selectedJoint = 1, s
     );
   };
 
-  const renderMatrixOverlay = () => {
-    if (!showFrameAnimation) return null;
-
-    let activeJoint = selectedJoint;
-    let localProgress = animProgress;
-
-    if (selectedJoint === 0) {
-      if (animProgress <= 1) {
-        activeJoint = 1;
-        localProgress = animProgress;
-      } else if (animProgress <= 3) {
-        activeJoint = 2;
-        localProgress = animProgress - 1;
-      } else if (animProgress <= 5) {
-        activeJoint = 3;
-        localProgress = animProgress - 3;
-      } else {
-        activeJoint = 4;
-        localProgress = animProgress - 5;
-      }
-    }
-
-    const isRotationPhase = activeJoint === 1
-      ? localProgress <= 1
-      : (activeJoint === 4 ? false : localProgress > 1);
-    const isTranslationPhase = activeJoint === 1
-      ? false
-      : (activeJoint === 4 ? true : localProgress <= 1);
-
-    let targetLength, theta_n;
-    if (activeJoint === 1) {
-      targetLength = L1;
-      theta_n = angles.theta1;
-    } else if (activeJoint === 2) {
-      targetLength = L2;
-      theta_n = angles.theta2;
-    } else if (activeJoint === 3) {
-      targetLength = L3;
-      theta_n = angles.theta3;
-    } else if (activeJoint === 4) {
-      targetLength = L3;
-      theta_n = 0;
-    } else {
-      return null;
-    }
-
-    const formatNegZero = (val) => (Math.abs(val) < 0.001 ? "0.00" : val.toFixed(2));
-
-    const cosVal = formatNegZero(Math.cos(theta_n));
-    const sinVal = formatNegZero(Math.sin(theta_n));
-    const negSinValCalc = -Math.sin(theta_n);
-    const negSinVal = formatNegZero(negSinValCalc);
-    // Explicitly handle JS negative zero stringification edge cases
-    const finalNegSinVal = negSinVal === "-0.00" || negSinVal === "0.00" ? "0.00" : negSinVal;
-
-    const thetaLabel = `θ${activeJoint}`;
-    const LLabel = `L${activeJoint}`;
-
-    // Define highlight styles based on the active phase
-    const rotationStyle = isRotationPhase
-      ? { color: '#0055ff', fontWeight: 'bold', background: 'rgba(0, 85, 255, 0.1)', borderRadius: '4px' }
-      : { color: '#999' };
-
-    const translationStyle = isTranslationPhase
-      ? { color: '#ff3300', fontWeight: 'bold', background: 'rgba(255, 51, 0, 0.1)', borderRadius: '4px' }
-      : { color: '#999' };
-
-    const constantStyle = { color: '#bbb' };
-
-    return (
-      <Paper sx={{ position: 'absolute', top: 20, right: 20, bgcolor: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(10px)', borderRadius: 3, p: 2.5, boxShadow: '0 8px 32px rgba(0,0,0,0.1)', fontFamily: 'monospace', fontSize: 16, color: '#333', pointerEvents: 'none', zIndex: 10, minWidth: 250 }}>
-        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.2 }}>
-          <Typography variant="subtitle2" sx={{ textTransform: 'uppercase', letterSpacing: 1, color: '#666', mb: 1 }}>Homogeneous Transformation Matrix</Typography>
-
-          <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2.5, alignItems: 'center' }}>
-            <Typography sx={{ fontSize: 60, fontWeight: 300, lineHeight: 1, color: '#999' }}>[</Typography>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.2, justifyContent: 'center' }}>
-              <Box sx={{ display: 'flex', gap: 2.5, justifyContent: 'center' }}>
-                <Typography sx={{ width: 80, textAlign: 'right', fontWeight: 'bold', fontFamily: 'monospace', ...rotationStyle }}>cos({thetaLabel})</Typography>
-                <Typography sx={{ width: 80, textAlign: 'right', fontWeight: 'bold', fontFamily: 'monospace', ...rotationStyle }}>-sin({thetaLabel})</Typography>
-                <Typography sx={{ width: 40, textAlign: 'center', fontWeight: 'bold', fontFamily: 'monospace', ...translationStyle }}>{LLabel}</Typography>
-              </Box>
-              <Box sx={{ display: 'flex', gap: 2.5, justifyContent: 'center' }}>
-                <Typography sx={{ width: 80, textAlign: 'right', fontWeight: 'bold', fontFamily: 'monospace', ...rotationStyle }}>sin({thetaLabel})</Typography>
-                <Typography sx={{ width: 80, textAlign: 'right', fontWeight: 'bold', fontFamily: 'monospace', ...rotationStyle }}>cos({thetaLabel})</Typography>
-                <Typography sx={{ width: 40, textAlign: 'center', fontWeight: 'bold', fontFamily: 'monospace', ...translationStyle }}>0</Typography>
-              </Box>
-              <Box sx={{ display: 'flex', gap: 2.5, justifyContent: 'center' }}>
-                <Typography sx={{ width: 80, textAlign: 'center', fontWeight: 'bold', fontFamily: 'monospace', ...constantStyle }}>0</Typography>
-                <Typography sx={{ width: 80, textAlign: 'center', fontWeight: 'bold', fontFamily: 'monospace', ...constantStyle }}>0</Typography>
-                <Typography sx={{ width: 40, textAlign: 'center', fontWeight: 'bold', fontFamily: 'monospace', ...constantStyle }}>1</Typography>
-              </Box>
-            </Box>
-            <Typography sx={{ fontSize: 60, fontWeight: 300, lineHeight: 1, color: '#999' }}>]</Typography>
-
-            <Typography sx={{ mx: 1.2, fontSize: 20 }}>=</Typography>
-
-            <Typography sx={{ fontSize: 60, fontWeight: 300, lineHeight: 1, color: '#999' }}>[</Typography>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.2, justifyContent: 'center' }}>
-              <Box sx={{ display: 'flex', gap: 2.5, justifyContent: 'center' }}>
-                <Typography sx={{ width: 70, textAlign: 'right', fontWeight: 'bold', fontFamily: 'monospace', ...rotationStyle }}>{cosVal}</Typography>
-                <Typography sx={{ width: 70, textAlign: 'right', fontWeight: 'bold', fontFamily: 'monospace', ...rotationStyle }}>{finalNegSinVal}</Typography>
-                <Typography sx={{ width: 50, fontWeight: 'bold', fontFamily: 'monospace', ...translationStyle }}>{targetLength}</Typography>
-              </Box>
-              <Box sx={{ display: 'flex', gap: 2.5, justifyContent: 'center' }}>
-                <Typography sx={{ width: 70, textAlign: 'right', fontWeight: 'bold', fontFamily: 'monospace', ...rotationStyle }}>{sinVal}</Typography>
-                <Typography sx={{ width: 70, textAlign: 'right', fontWeight: 'bold', fontFamily: 'monospace', ...rotationStyle }}>{cosVal}</Typography>
-                <Typography sx={{ width: 50, fontWeight: 'bold', fontFamily: 'monospace', ...translationStyle }}>0</Typography>
-              </Box>
-              <Box sx={{ display: 'flex', gap: 2.5, justifyContent: 'center' }}>
-                <Typography sx={{ width: 70, textAlign: 'center', fontWeight: 'bold', fontFamily: 'monospace', ...constantStyle }}>0</Typography>
-                <Typography sx={{ width: 70, textAlign: 'center', fontWeight: 'bold', fontFamily: 'monospace', ...constantStyle }}>0</Typography>
-                <Typography sx={{ width: 50, textAlign: 'center', fontWeight: 'bold', fontFamily: 'monospace', ...constantStyle }}>1</Typography>
-              </Box>
-            </Box>
-            <Typography sx={{ fontSize: 60, fontWeight: 300, lineHeight: 1, color: '#999' }}>]</Typography>
-          </Box>
-        </Box>
-      </Paper>
-    );
-  };
-
   return (
     <Box sx={{ width: '100%', height: '100%', boxSizing: 'border-box', p: 2.5, overflow: 'hidden', position: 'relative' }}>
       <Box ref={containerRef} sx={{ width: '100%', height: '100%' }}>
@@ -932,7 +807,6 @@ const Robot2d = ({ angles, onAngleChange, selectedStep = 4, selectedJoint = 1, s
           </Layer>
         </Stage>
       </Box>
-      {renderMatrixOverlay()}
 
       {/* Grid Toggle Control */}
       <Paper sx={{ position: 'absolute', bottom: 20, right: 20, bgcolor: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(10px)', p: '10px 15px', borderRadius: 2, boxShadow: '0 4px 12px rgba(0,0,0,0.1)', zIndex: 10, fontSize: 14 }}>

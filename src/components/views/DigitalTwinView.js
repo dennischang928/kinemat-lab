@@ -357,6 +357,7 @@ function DigitalTwinView({ activeSection = 'control', onSectionChange = () => { 
         <Box sx={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
           <Box sx={{ display: activeSection === 'control' ? 'block' : 'none', height: '100%' }}>
             <ControlPanel
+              
               jointTargets={jointTargets}
               setJointTargets={commitUserJointTargets}
               setJointTargetsFromHardware={commitExternalJointTargets}

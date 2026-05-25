@@ -43,14 +43,6 @@ S_1 & C_1 & 0 & 0 \\
 0 & 0 & 0 & 1
 \end{bmatrix}`,
             },
-            {
-                type: 'text',
-                value: ', where: ',
-            },
-            {
-                type: 'blockMath',
-                value: 'C_1=\\cos\\theta_1,\\; S_1=\\sin\\theta_1, \\; C_{12}=\\cos(\\theta_1+\\theta_2),\\; S_{12}=\\sin(\\theta_1+\\theta_2)',
-            },
         ],
     },
     {

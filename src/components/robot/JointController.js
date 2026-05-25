@@ -64,7 +64,7 @@ const JointController = ({
             onChange={(e) => handleNumberInput('theta1', parseFloat(e.target.value) || 0)}
             sx={inputSx}
           />
-          <Typography variant="body2">°</Typography>
+          <Typography variant="body2">° / {Math.round(angles.theta1 ,3)} rad</Typography>
         </Box>
         <Slider
           min={-180}

@@ -113,6 +113,13 @@ function ControlPanel({
     setFeedrate(numeric);
   };
 
+  const Joints_Min_max = {
+    J1: { min: DISPLAY_MIN, max: DISPLAY_MAX },
+    J2: { min: -65, max: 65 },
+    J3: { min: DISPLAY_MIN, max: DISPLAY_MAX },
+    J4: { min: DISPLAY_MIN, max: DISPLAY_MAX },
+  };
+
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -136,8 +143,8 @@ function ControlPanel({
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <Typography variant="body2" fontFamily="monospace">{joint}:</Typography>
                     <Slider
-                      min={DISPLAY_MIN}
-                      max={DISPLAY_MAX}
+                      min={Joints_Min_max[joint].min}
+                      max={Joints_Min_max[joint].max}
                       step={DEG_PER_STEP}
                       value={getDisplayedJointValue(joint)}
                       onChange={(e, val) => handleJointChange(joint, val)}

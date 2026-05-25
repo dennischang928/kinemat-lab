@@ -4,11 +4,28 @@ import { BlockMath, InlineMath } from 'react-katex';
 import fkProcessSteps from './fkProcessSteps';
 import 'katex/dist/katex.min.css';
 import './fkprocessselector.css';
+
+const PANEL_SX = {
+  bgcolor: '#ffffff',
+  border: '1px solid #e8dfbe',
+  borderRadius: '6px',
+};
+
+const MathCard = ({ children, sx = {} }) => (
+  <Box sx={{ ...PANEL_SX, p: 1, overflowX: 'auto', ...sx }}>{children}</Box>
+);
+
+
 /**
  * FK Process Step Selector Component
  * Shows step-by-step forward kinematics visualization with interactive step selection
  */
-const FKProcessSelector = ({ onStepChange, isPlayAllActive = false }) => {
+const FKProcessSelector = ({
+  onStepChange,
+  isPlayAllActive = false,
+  angles = { theta1: 0, theta2: 0, theta3: 0 },
+  linkLengths = { L1: 40, L2: 70, L3: 50 },
+}) => {
   const [selectedStep, setSelectedStep] = useState(4);
 
   useEffect(() => {
@@ -44,17 +61,9 @@ const FKProcessSelector = ({ onStepChange, isPlayAllActive = false }) => {
   const renderStepContent = (step) => {
     if (!Array.isArray(step.content) || step.content.length === 0) {
       return (
-        <Box
-          sx={{
-            bgcolor: '#ffffff',
-            border: '1px solid #e8dfbe',
-            borderRadius: '6px',
-            p: 1,
-            overflowX: 'auto',
-          }}
-        >
+        <MathCard>
           <BlockMath math={step.latexMath || ''} />
-        </Box>
+        </MathCard>
       );
     }
 
@@ -89,18 +98,9 @@ const FKProcessSelector = ({ onStepChange, isPlayAllActive = false }) => {
 
       if (item.type === 'blockMath') {
         return (
-          <Box
-            key={`item-block-${index}`}
-            sx={{
-              bgcolor: '#ffffff',
-              border: '1px solid #e8dfbe',
-              borderRadius: '6px',
-              p: 1,
-              overflowX: 'auto',
-            }}
-          >
+          <MathCard key={`item-block-${index}`} sx={{ height: 'auto' }}>
             <BlockMath math={item.value} />
-          </Box>
+          </MathCard>
         );
       }
 
@@ -112,9 +112,98 @@ const FKProcessSelector = ({ onStepChange, isPlayAllActive = false }) => {
     });
   };
 
+  const formatLatexNumber = (value) => {
+    if (!Number.isFinite(value)) {
+      return '0';
+    }
+
+    const rounded = Number(value.toFixed(3));
+    return Object.is(rounded, -0) ? '0' : `${rounded}`;
+  };
+
+  const renderPluggingInParameters = (stepNumber) => {
+    const theta1 = Number(angles.theta1) || 0;
+    const theta2 = Number(angles.theta2) || 0;
+    const theta3 = Number(angles.theta3) || 0;
+    const { L1, L2, L3 } = linkLengths;
+
+    const absolute1 = theta1;
+    const absolute2 = theta1 + theta2;
+    const absolute3 = theta1 + theta2 + theta3;
+
+    const angle1Text = formatLatexNumber(absolute1);
+    const angle2Text = formatLatexNumber(absolute2);
+    const angle3Text = formatLatexNumber(absolute3);
+
+    const substitutedByStep = {
+      1: String.raw`^0T_1 = \begin{bmatrix}
+\cos(${angle1Text}) & -\sin(${angle1Text}) & 0 & 0 \\
+\sin(${angle1Text}) & \cos(${angle1Text}) & 0 & 0 \\
+0 & 0 & 1 & 0 \\
+0 & 0 & 0 & 1
+\end{bmatrix}`,
+      2: String.raw`^0T_2 = \begin{bmatrix}
+\cos(${angle2Text}) & -\sin(${angle2Text}) & 0 & ${formatLatexNumber(L1)}\cos(${angle1Text}) \\
+\sin(${angle2Text}) & \cos(${angle2Text}) & 0 & ${formatLatexNumber(L1)}\sin(${angle1Text}) \\
+0 & 0 & 1 & 0 \\
+0 & 0 & 0 & 1
+\end{bmatrix}`,
+      3: String.raw`^0T_3 = \begin{bmatrix}
+\cos(${angle3Text}) & -\sin(${angle3Text}) & 0 & ${formatLatexNumber(L1)}\cos(${angle1Text}) + ${formatLatexNumber(L2)}\cos(${angle2Text}) \\
+\sin(${angle3Text}) & \cos(${angle3Text}) & 0 & ${formatLatexNumber(L1)}\sin(${angle1Text}) + ${formatLatexNumber(L2)}\sin(${angle2Text}) \\
+0 & 0 & 1 & 0 \\
+0 & 0 & 0 & 1
+\end{bmatrix}`,
+      4: String.raw`^0T_4 = \begin{bmatrix}
+\cos(${angle3Text}) & -\sin(${angle3Text}) & 0 & ${formatLatexNumber(L1)}\cos(${angle1Text}) + ${formatLatexNumber(L2)}\cos(${angle2Text}) + ${formatLatexNumber(L3)}\cos(${angle3Text}) \\
+\sin(${angle3Text}) & \cos(${angle3Text}) & 0 & ${formatLatexNumber(L1)}\sin(${angle1Text}) + ${formatLatexNumber(L2)}\sin(${angle2Text}) + ${formatLatexNumber(L3)}\sin(${angle3Text}) \\
+0 & 0 & 1 & 0 \\
+0 & 0 & 0 & 1
+\end{bmatrix}`,
+    };
+
+    const evaluatedByStep = {
+      1: String.raw`^0T_1 \approx \begin{bmatrix}
+${formatLatexNumber(Math.cos(absolute1))} & ${formatLatexNumber(-Math.sin(absolute1))} & 0 & 0 \\
+${formatLatexNumber(Math.sin(absolute1))} & ${formatLatexNumber(Math.cos(absolute1))} & 0 & 0 \\
+0 & 0 & 1 & 0 \\
+0 & 0 & 0 & 1
+\end{bmatrix}`,
+      2: String.raw`^0T_2 \approx \begin{bmatrix}
+${formatLatexNumber(Math.cos(absolute2))} & ${formatLatexNumber(-Math.sin(absolute2))} & 0 & ${formatLatexNumber(L1 * Math.cos(absolute1))} \\
+${formatLatexNumber(Math.sin(absolute2))} & ${formatLatexNumber(Math.cos(absolute2))} & 0 & ${formatLatexNumber(L1 * Math.sin(absolute1))} \\
+0 & 0 & 1 & 0 \\
+0 & 0 & 0 & 1
+\end{bmatrix}`,
+      3: String.raw`^0T_3 \approx \begin{bmatrix}
+${formatLatexNumber(Math.cos(absolute3))} & ${formatLatexNumber(-Math.sin(absolute3))} & 0 & ${formatLatexNumber(L1 * Math.cos(absolute1) + L2 * Math.cos(absolute2))} \\
+${formatLatexNumber(Math.sin(absolute3))} & ${formatLatexNumber(Math.cos(absolute3))} & 0 & ${formatLatexNumber(L1 * Math.sin(absolute1) + L2 * Math.sin(absolute2))} \\
+0 & 0 & 1 & 0 \\
+0 & 0 & 0 & 1
+\end{bmatrix}`,
+      4: String.raw`^0T_4 \approx \begin{bmatrix}
+${formatLatexNumber(Math.cos(absolute3))} & ${formatLatexNumber(-Math.sin(absolute3))} & 0 & ${formatLatexNumber(L1 * Math.cos(absolute1) + L2 * Math.cos(absolute2) + L3 * Math.cos(absolute3))} \\
+${formatLatexNumber(Math.sin(absolute3))} & ${formatLatexNumber(Math.cos(absolute3))} & 0 & ${formatLatexNumber(L1 * Math.sin(absolute1) + L2 * Math.sin(absolute2) + L3 * Math.sin(absolute3))} \\
+0 & 0 & 1 & 0 \\
+0 & 0 & 0 & 1
+\end{bmatrix}`,
+    };
+
+    return (
+      <Box sx={{ display: 'grid', gap: 1, pr: 0.5 }}>
+          <MathCard sx={{ p: 0.75 }}>
+            <BlockMath math={substitutedByStep[stepNumber] || ''} />
+          </MathCard>
+
+          <MathCard sx={{ p: 0.75 }}>
+            <BlockMath math={evaluatedByStep[stepNumber] || ''} />
+          </MathCard>
+      </Box>
+    );
+  };
+
   const currentStep = fkProcessSteps[selectedStep];
 
-  // Notify parent of step selection
   const handleStepSelect = (step) => {
     setSelectedStep(step);
     if (onStepChange) {
@@ -129,10 +218,24 @@ const FKProcessSelector = ({ onStepChange, isPlayAllActive = false }) => {
   };
 
   return (
-    <Box sx={{ bgcolor: '#f9f9f9', borderTop: '1px solid #ddd', p: 2, overflowY: 'auto', height: '100%' }
-    } className="fk-process-selector">
-      <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1.5 }}>Forward Kinematics Process</Typography>
-      {/* Step Buttons */}
+    <Box
+      className="fk-process-selector"
+      sx={{
+        bgcolor: '#f9f9f9',
+        borderTop: '1px solid #ddd',
+        p: 2,
+        height: '100%',
+        maxHeight: '100%',
+        minHeight: 0,
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
+      <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1.5 }}>
+        Forward Kinematics Process
+      </Typography>
+
       <Box sx={{ display: 'flex', gap: 1, mb: 1.5, overflowX: 'auto', py: 0.5, justifyContent: 'space-evenly' }}>
         {fkProcessSteps.map((step) => (
           <Button
@@ -154,8 +257,12 @@ const FKProcessSelector = ({ onStepChange, isPlayAllActive = false }) => {
               borderRadius: '8px',
             }}
           >
-            <Typography variant="body2" fontWeight={700} lineHeight={1}>{step.number}</Typography>
-            <Typography variant="caption" sx={{ opacity: 0.8 }}>{step.title.split(' ')[0]}</Typography>
+            <Typography variant="body2" fontWeight={700} lineHeight={1}>
+              {step.number}
+            </Typography>
+            <Typography variant="caption" sx={{ opacity: 0.8 }}>
+              {step.title.split(' ')[0]}
+            </Typography>
           </Button>
         ))}
         <Button
@@ -186,15 +293,25 @@ const FKProcessSelector = ({ onStepChange, isPlayAllActive = false }) => {
           mb: 1.5,
           bgcolor: '#fffef8',
           borderColor: '#e0d9b7',
+          minHeight: 0,
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          overflowY: 'auto',
         }}
       >
-        <Typography variant="caption" fontWeight={700} display="block" sx={{ mb: 0.8, color: '#6a5d1a' }}>
-          {currentStep.title}
-        </Typography>
-        {renderStepContent(currentStep)}
+        <Box sx={{ minHeight: 0, flex: 1, pr: 0.5 }}>
+          <Typography variant="caption" fontWeight={700} display="block" sx={{ mb: 0.8, color: '#6a5d1a' }}>
+            {currentStep.title}
+          </Typography>
+          {renderStepContent(currentStep)}
+          <Typography variant="caption" fontWeight={700} display="block" sx={{ mt: 1.2, mb: 0.8, color: '#6a5d1a' }}>
+            Plugging in the parameters:
+          </Typography>
+          {renderPluggingInParameters(currentStep.number)}
+        </Box>
       </Paper>
 
-      {/* Progress indicator */}
       <LinearProgress
         variant="determinate"
         value={(selectedStep / 4) * 100}

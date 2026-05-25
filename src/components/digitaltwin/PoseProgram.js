@@ -310,9 +310,9 @@ const ProgramInner = forwardRef(function PoseProgram({
 			const now = Date.now();
 			const diff = lastG0TimeRef.current ? now - lastG0TimeRef.current : 0;
 			lastG0TimeRef.current = now;
-			console.log(`${command.trim()} @ +${diff}ms (target: ${frameDelayMs}ms)`);
+			// console.log(`${command.trim()} @ +${diff}ms (target: ${frameDelayMs}ms)`);
 		} else {
-			console.log(command);
+			// console.log(command);
 		}
 		// If sends are requested (real hardware run), perform them.
 		// For preview/playback in the UI we skip any serial I/O so the

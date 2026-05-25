@@ -74,14 +74,25 @@ const Robot3d = ({ angles, selectedStep = 4, selectedJoint = 1, showFrameAnimati
     let startTime;
     const DURATION = selectedJoint === 0 ? 18000 : 4000;
     const TOTAL_PROGRESS = selectedJoint === 0 ? 9 : (selectedJoint === 4 ? 1 : 2);
+    const shouldLoop = selectedJoint === 0;
 
     const animate = (time) => {
       if (!startTime) startTime = time;
       const elapsed = time - startTime;
-      
-      const progress = (elapsed % DURATION) / (DURATION / TOTAL_PROGRESS);
-      setAnimProgress(progress);
-      
+
+      if (shouldLoop) {
+        const progress = (elapsed % DURATION) / (DURATION / TOTAL_PROGRESS);
+        setAnimProgress(progress);
+      } else {
+        const progress = Math.min(elapsed / DURATION, 1) * TOTAL_PROGRESS;
+        setAnimProgress(progress);
+
+        if (elapsed >= DURATION) {
+          animationRef.current = null;
+          return;
+        }
+      }
+
       animationRef.current = requestAnimationFrame(animate);
     };
 

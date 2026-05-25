@@ -142,19 +142,19 @@ function KinematicsView() {
 
   return (
     <Box 
-      sx={{ width: '100%', height: '100%', m: 0, p: 0, overflow: 'hidden', display: 'flex', flexDirection: 'row' }}
+      sx={{ width: '100%', height: '100%', m: 0, p: 0,  display: 'flex', flexDirection: 'row' }}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
     >
       {/* Left Panel */}
       <Box 
-        sx={{ width: `${leftPanelWidth}%`, height: '100%', bgcolor: '#f5f5f5', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
+        sx={{ width: `${leftPanelWidth}%`, height: '100%', bgcolor: '#f5f5f5', display: 'flex', flexDirection: 'column',  }}
         onMouseMove={handleJointDividerMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
       >
-        <Box sx={{ flex: jointControllerHeight, overflow: 'auto', minHeight: 0 }}>
+        <Box sx={{ flex: jointControllerHeight,  minHeight: 0 }}>
           <JointController 
             angles={angles} 
             onAngleChange={handleAngleChange} 
@@ -182,15 +182,34 @@ function KinematicsView() {
           }}
         />
         
-        <Box sx={{ flex: 100 - jointControllerHeight}}>
-          <FKProcessSelector 
-            angles={angles} 
-            linkLengths={linkLengths}
-            onStepChange={handleStepChange}
-            isPlayAllActive={isPlayAllActive}
-          />
-          <Box sx={{ p: 1, borderTop: '1px solid #ddd', fontSize: '12px', color: '#999', textAlign: 'center' }}>
-            💾 Settings saved to browser
+        <Box
+          sx={{
+            flex: 100 - jointControllerHeight,
+            minHeight: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+          }}
+        >
+          <Box sx={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+            <FKProcessSelector
+              angles={angles}
+              linkLengths={linkLengths}
+              onStepChange={handleStepChange}
+              isPlayAllActive={isPlayAllActive}
+            />
+          </Box>
+          <Box
+            sx={{
+              p: 1,
+              borderTop: '1px solid #ddd',
+              fontSize: '12px',
+              color: '#999',
+              textAlign: 'center',
+              flexShrink: 0,
+            }}
+          >
+            Settings saved to browser
           </Box>
         </Box>
       </Box>
