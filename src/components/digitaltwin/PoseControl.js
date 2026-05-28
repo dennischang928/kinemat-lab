@@ -11,8 +11,8 @@ const FEEDRATE_MIN = 10;
 const FEEDRATE_MAX = 1000;
 const XYZ_MIN = -0.3;
 const XYZ_MAX = 0.3;
-const Z_MIN = 0;
-const Z_MAX = 0.4;
+const Y_MIN = 0;
+const Y_MAX = 0.4;
 const STEP = 0.001;
 
 const ORIENTATION_MIN = -180;
@@ -73,6 +73,7 @@ const PoseControl = forwardRef(function PoseControl({
     const position = scenePose?.position;
     const quaternion = scenePose?.quaternion;
     const euler = quaternion ? new THREE.Euler().setFromQuaternion(quaternion, 'XYZ') : null;
+    console.log("euler", euler);
     const nextPose = {
       ...currentPose, // Start with current pose as base (in order to reach a solution cloest to this pose)
       x: position?.x ?? currentPose.x,
@@ -151,8 +152,8 @@ const PoseControl = forwardRef(function PoseControl({
             </Box>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               {['x', 'y', 'z'].map((axis, index) => {
-                const minVal = axis === 'z' ? Z_MIN : XYZ_MIN;
-                const maxVal = axis === 'z' ? Z_MAX : XYZ_MAX;
+                const minVal = axis === 'y' ? Y_MIN : XYZ_MIN;
+                const maxVal = axis === 'y' ? Y_MAX : XYZ_MAX;
                 return (
                   <Box
                     key={axis}

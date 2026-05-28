@@ -22,13 +22,9 @@ export const calculateForwardKinematicsMatrix = ({ q1 = 0, q2 = 0, q3 = 0, q4 = 
 	const verticalOffset = 0.106 * c2 + 0.106 * c23 + 0.0645 * c234 + 0.0605;
 
 	return [
-		// [s134*c1, -s1, -c1*c234,]
-		[s234*c1,-s1, -c1 * c234, planarOffset * c1],
-		[s234*s1, c1, -s1*c234, planarOffset * s1],
-		[c234, 0, s234, verticalOffset],
-		// [-s1 * s5 + s234 * c1 * c5, -s1 * c5 - s5 * s234 * c1, -c1 * c234, planarOffset * c1],
-		// [s1 * s234 * c5 + s5 * c1, -s1 * s5 * s234 + c1 * c5, -s1 * c234, planarOffset * s1],
-		// [c5 * c234, -s5 * c234, s234, verticalOffset],
+		[s234 * c1, -c1 * c234, s1, planarOffset * c1],
+		[c234, s234, 0, verticalOffset],
+		[-s1 * s234, s1 * c234, c1, -planarOffset * s1],
 		[0, 0, 0, 1],
 	];
 };

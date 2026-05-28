@@ -357,7 +357,6 @@ function DigitalTwinView({ activeSection = 'control', onSectionChange = () => { 
         <Box sx={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
           <Box sx={{ display: activeSection === 'control' ? 'block' : 'none', height: '100%' }}>
             <ControlPanel
-              
               jointTargets={jointTargets}
               setJointTargets={commitUserJointTargets}
               setJointTargetsFromHardware={commitExternalJointTargets}
@@ -385,7 +384,7 @@ function DigitalTwinView({ activeSection = 'control', onSectionChange = () => { 
             />
           </Box>
           <Box sx={{ display: activeSection === 'programming' ? 'block' : 'none', height: '100%' }}>
-            <Programming
+            {/* <Programming
               ref={programmingRef}
               jointTargets={jointTargets}
               setJointTargets={commitUserJointTargets}
@@ -398,7 +397,8 @@ function DigitalTwinView({ activeSection = 'control', onSectionChange = () => { 
                 setIsLinearInterpolationEnabled(!!isInterpolationEnabled);
               }}
               setProgramButtonLabel={setProgramButtonLabel}
-            />
+            /> */}
+           Programming Feature (Linear Interpolation) is under development
           </Box>
         </Box>
 

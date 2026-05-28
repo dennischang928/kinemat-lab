@@ -131,13 +131,11 @@ const buildScenePoseFromFkMatrix = (fkMatrixValues) => {
     fkMatrixValues[3][0], fkMatrixValues[3][1], fkMatrixValues[3][2], fkMatrixValues[3][3],
   );
 
-  // Apply coordinate-frame rotation (Z-up → Y-up).
-  const sceneMatrix = new THREE.Matrix4().multiplyMatrices(FK_TO_SCENE_ROTATION, fkMatrix);
   const position = new THREE.Vector3();
   const quaternion = new THREE.Quaternion();
   const scale = new THREE.Vector3();
 
-  sceneMatrix.decompose(position, quaternion, scale);
+  fkMatrix.decompose(position, quaternion, scale);
 
   const euler = new THREE.Euler().setFromQuaternion(quaternion, 'XYZ');
 
@@ -157,19 +155,10 @@ const readMeshWorldPose = (mesh) => {
   const worldPos = new THREE.Vector3();
   const worldQuat = new THREE.Quaternion();
   
-  // Rotate the world coordinates from Three.js (Y-up) to ROS (Z-up).
-  const rosFrameRotation = new THREE.Quaternion().setFromAxisAngle(
-    new THREE.Vector3(1, 0, 0),
-    Math.PI / 2,
-  );
-
   if (mesh) {
     mesh.getWorldPosition(worldPos);
     mesh.getWorldQuaternion(worldQuat);
   }
-
-  worldPos.applyQuaternion(rosFrameRotation);
-  worldQuat.premultiply(rosFrameRotation);
 
   return {
     // Rotate Three.js Y-up coordinates into ROS Z-up coordinates with +90° about X.
@@ -187,8 +176,6 @@ const readMeshWorldPose = (mesh) => {
  * A small pink shaft + red cone that indicates the end-effector direction.
  */
 const TransformHandle = ({ meshRef, transformedPosition, transformedRotation }) => (
-  // <group ref={meshRef} worldMatrix={matrix} matrixWorldNeedsUpdate={true}>
-  // <group ref={meshRef} position=[matrix.position[0], matrix.position[1], matrix.position[2]]>
   <group ref={meshRef} position={transformedPosition} rotation={transformedRotation}>
     {/* Shaft */}
     <mesh position={[0.02, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
@@ -276,10 +263,10 @@ function SceneContent({
     if (!meshRef?.current) return false;
 
     const pose = readMeshWorldPose(meshRef.current);
-    const currentRotation = transformedRotation || [0, 0, 0];
     if (typeof onComplete === 'function') {
       const result = onComplete(pose);
       if (result === false) {
+        const currentRotation = transformedRotation || [0, 0, 0];
         meshRef.current.position.set(transformedPosition[0], transformedPosition[1], transformedPosition[2]);
         meshRef.current.rotation.set(currentRotation[0], currentRotation[1], currentRotation[2]);
       }
@@ -338,10 +325,10 @@ function SceneContent({
             <div style={{ color: '#f44336', fontSize: 12, fontWeight: 700, pointerEvents: 'none' }}>X</div>
           </Html>
           <Html position={[0, 0.3, 0]} center>
-            <div style={{ color: '#43a047', fontSize: 12, fontWeight: 700, pointerEvents: 'none' }}>Z</div>
+            <div style={{ color: '#43a047', fontSize: 12, fontWeight: 700, pointerEvents: 'none' }}>Y</div>
           </Html>
-          <Html position={[0, 0, -0.3]} center>
-            <div style={{ color: '#1e88e5', fontSize: 12, fontWeight: 700, pointerEvents: 'none' }}>Y</div>
+          <Html position={[0, 0, 0.3]} center>
+            <div style={{ color: '#1e88e5', fontSize: 12, fontWeight: 700, pointerEvents: 'none' }}>Z</div>
           </Html>
         </>
       )}
