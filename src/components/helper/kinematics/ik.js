@@ -38,12 +38,23 @@ const normalizePoseMask = (mask) => {
 	];
 };
 const activePoseRows = (mask) => mask.flatMap((enabled, idx) => (enabled ? [idx] : []));
+const usesPartialRotationMask = (mask) => {
+	const activeRotationCount = [mask[3], mask[4], mask[5]].filter(Boolean).length;
+	return activeRotationCount > 0 && activeRotationCount < 3;
+};
 
 /* ====== FK wrapper (small helper to keep calls concise) ====== */
 const fkFromArray = (joints) => calculateForwardKinematicsMatrix({ q1: joints[0], q2: joints[1], q3: joints[2], q4: joints[3] });
 
 /* ====== Pose error (translation + small-angle rotation error) ====== */
-const matrixPoseError = (currentMatrix, targetMatrix) => {
+const matrixEulerXYZ = (matrix) => {
+	const pitch = Math.atan2(-matrix[2][0], Math.sqrt((matrix[2][1] ** 2) + (matrix[2][2] ** 2)));
+	const roll = Math.atan2(matrix[2][1], matrix[2][2]);
+	const yaw = Math.atan2(matrix[1][0], matrix[0][0]);
+	return { roll, pitch, yaw };
+};
+
+const matrixSmallAnglePoseError = (currentMatrix, targetMatrix) => {
 	const curR = new Matrix([
 		[currentMatrix[0][0], currentMatrix[0][1], currentMatrix[0][2]],
 		[currentMatrix[1][0], currentMatrix[1][1], currentMatrix[1][2]],
@@ -67,8 +78,30 @@ const matrixPoseError = (currentMatrix, targetMatrix) => {
 	];
 };
 
+const matrixEulerPoseError = (currentMatrix, targetMatrix) => {
+	const cur = matrixEulerXYZ(currentMatrix);
+	const tgt = matrixEulerXYZ(targetMatrix);
+
+	return [
+		(targetMatrix[0][3] ?? 0) - (currentMatrix[0][3] ?? 0),
+		(targetMatrix[1][3] ?? 0) - (currentMatrix[1][3] ?? 0),
+		(targetMatrix[2][3] ?? 0) - (currentMatrix[2][3] ?? 0),
+		wrapToPi(tgt.roll - cur.roll),
+		wrapToPi(tgt.pitch - cur.pitch),
+		wrapToPi(tgt.yaw - cur.yaw),
+	];
+};
+
+const matrixPoseError = (currentMatrix, targetMatrix, poseMask = null) => {
+	if (poseMask && usesPartialRotationMask(poseMask)) {
+		return matrixEulerPoseError(currentMatrix, targetMatrix);
+	}
+
+	return matrixSmallAnglePoseError(currentMatrix, targetMatrix);
+};
+
 /* ====== Numeric Jacobian + DLS step builder (returns delta vector) ====== */
-	const buildMaskedLeastSquaresStep = (joints, targetMatrix, activeRows, stepSize, damping, currentPoseError) => {
+	const buildMaskedLeastSquaresStep = (joints, targetMatrix, poseMask, activeRows, stepSize, damping, currentPoseError) => {
 	if (activeRows.length === 0) return { delta: [0, 0, 0, 0] };
 
 	const error = activeRows.map((r) => currentPoseError[r]);
@@ -78,8 +111,8 @@ const matrixPoseError = (currentMatrix, targetMatrix) => {
 	for (let j = 0; j < 4; j++) {
 		const plus = fkFromArray(joints.map((q, i) => (i === j ? q + stepSize : q)));
 		const minus = fkFromArray(joints.map((q, i) => (i === j ? q - stepSize : q)));
-		const ePlus = matrixPoseError(plus, targetMatrix);
-		const eMinus = matrixPoseError(minus, targetMatrix);
+		const ePlus = matrixPoseError(plus, targetMatrix, poseMask);
+		const eMinus = matrixPoseError(minus, targetMatrix, poseMask);
 		for (let r = 0; r < activeRows.length; r++) J[r][j] = (eMinus[activeRows[r]] - ePlus[activeRows[r]]) / (2 * stepSize);
 	}
 
@@ -134,7 +167,7 @@ const solveFromSeed = (seed, targetMatrix, poseMask, stepSize, damping, maxItera
 	const active = activePoseRows(poseMask);
 
 	let curMat = fkFromArray(joints);
-	let curErr = matrixPoseError(curMat, targetMatrix);
+	let curErr = matrixPoseError(curMat, targetMatrix, poseMask);
 	let curNorm = vectorNorm(active.map((r) => curErr[r]));
 
 	const seedErrorNorm = curNorm;
@@ -146,14 +179,14 @@ const solveFromSeed = (seed, targetMatrix, poseMask, stepSize, damping, maxItera
 		iterations = it + 1;
 		if (curNorm <= tolerance) { converged = true; break; }
 
-		const step = buildMaskedLeastSquaresStep(joints, targetMatrix, active, stepSize, damping, curErr);
+		const step = buildMaskedLeastSquaresStep(joints, targetMatrix, poseMask, active, stepSize, damping, curErr);
 		if (!step) break;
 
 		const { delta } = step;
 		for (let j = 0; j < 4; j++) joints[j] = wrapToPi(joints[j] + delta[j]);
 
 		curMat = fkFromArray(joints);
-		curErr = matrixPoseError(curMat, targetMatrix);
+		curErr = matrixPoseError(curMat, targetMatrix, poseMask);
 		curNorm = vectorNorm(active.map((r) => curErr[r]));
 
 		if (curNorm < bestNorm) bestNorm = curNorm;
