@@ -35,6 +35,16 @@ function MainSidebar() {
           alignItems: 'center',
           justifyContent: 'center',
           borderBottom: '1px solid #2a2a2a',
+          cursor: 'pointer',
+        }}
+        onClick={() => navigate('/kinematics')}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            navigate('/kinematics');
+          }
         }}
       >
         <Box

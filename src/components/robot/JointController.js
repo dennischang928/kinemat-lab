@@ -1,5 +1,6 @@
 import React from 'react';
-import { Box, Typography, Slider, TextField } from '@mui/material';
+import { Box, Typography, Slider } from '@mui/material';
+import DeferredNumericField from '../common/DeferredNumericField';
 
 const JointController = ({ 
   angles, 
@@ -21,6 +22,9 @@ const JointController = ({
 
   const sliderSx = { width: '90%', ml: 1 };
   const inputSx = { width: '60px', '& input': { textAlign: 'center', py: '4px', fontSize: '12px' } };
+  const getDegreeValue = (joint) => (angles[joint] * 180) / Math.PI;
+  const getRadianValue = (joint) => angles[joint];
+  const renderAngleReadout = (joint) => `${getRadianValue(joint).toFixed(3)} rad`;
 
   return (
     <Box sx={{ flex: '0 0 auto', bgcolor: '#f5f5f5', overflowY: 'auto', px: 2.5, py: 1.5 }}>
@@ -31,20 +35,22 @@ const JointController = ({
         <Box sx={{ mb: 2, pb: 2, borderBottom: '1px solid #ccc' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <Typography variant="body2" fontFamily="monospace">θ0:</Typography>
-            <TextField
-              type="number"
+            <DeferredNumericField
               size="small"
-              inputProps={{ min: -180, max: 180, step: 1 }}
-              value={Math.round(angles.thetaBase * 180 / Math.PI)}
-              onChange={(e) => handleNumberInput('thetaBase', parseFloat(e.target.value) || 0)}
+              value={Math.round(getDegreeValue('thetaBase'))}
+              onCommit={(next) => handleNumberInput('thetaBase', next)}
+              formatValue={(next) => String(Math.round(Number(next) || 0))}
               sx={inputSx}
             />
             <Typography variant="body2">°</Typography>
+            <Typography variant="body2" sx={{ minWidth: '84px', fontFamily: 'monospace', color: 'text.secondary' }}>
+              {renderAngleReadout('thetaBase')}
+            </Typography>
           </Box>
           <Slider
             min={-180}
             max={180}
-            value={angles.thetaBase * 180 / Math.PI}
+            value={getDegreeValue('thetaBase')}
             onChange={(e, val) => handleAngleChange('thetaBase', val * Math.PI / 180)}
             size="small"
             sx={sliderSx}
@@ -56,20 +62,22 @@ const JointController = ({
       <Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <Typography variant="body2" fontFamily="monospace">θ1:</Typography>
-          <TextField
-            type="number"
+          <DeferredNumericField
             size="small"
-            inputProps={{ min: -180, max: 180, step: 1 }}
-            value={Math.round(angles.theta1 * 180 / Math.PI)}
-            onChange={(e) => handleNumberInput('theta1', parseFloat(e.target.value) || 0)}
+            value={Math.round(getDegreeValue('theta1'))}
+            onCommit={(next) => handleNumberInput('theta1', next)}
+            formatValue={(next) => String(Math.round(Number(next) || 0))}
             sx={inputSx}
           />
-          <Typography variant="body2">° / {Math.round(angles.theta1 ,3)} rad</Typography>
+          <Typography variant="body2">°</Typography>
+          <Typography variant="body2" sx={{ minWidth: '84px', fontFamily: 'monospace', color: 'text.secondary' }}>
+            {renderAngleReadout('theta1')}
+          </Typography>
         </Box>
         <Slider
           min={-180}
           max={180}
-          value={angles.theta1 * 180 / Math.PI}
+          value={getDegreeValue('theta1')}
           onChange={(e, val) => handleAngleChange('theta1', val * Math.PI / 180)}
           size="small"
           sx={sliderSx}
@@ -80,20 +88,22 @@ const JointController = ({
       <Box sx={{ mt: 2 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <Typography variant="body2" fontFamily="monospace">θ2:</Typography>
-          <TextField
-            type="number"
+          <DeferredNumericField
             size="small"
-            inputProps={{ min: -180, max: 180, step: 1 }}
-            value={Math.round(angles.theta2 * 180 / Math.PI)}
-            onChange={(e) => handleNumberInput('theta2', parseFloat(e.target.value) || 0)}
+            value={Math.round(getDegreeValue('theta2'))}
+            onCommit={(next) => handleNumberInput('theta2', next)}
+            formatValue={(next) => String(Math.round(Number(next) || 0))}
             sx={inputSx}
           />
           <Typography variant="body2">°</Typography>
+          <Typography variant="body2" sx={{ minWidth: '84px', fontFamily: 'monospace', color: 'text.secondary' }}>
+            {renderAngleReadout('theta2')}
+          </Typography>
         </Box>
         <Slider
           min={-180}
           max={180}
-          value={angles.theta2 * 180 / Math.PI}
+          value={getDegreeValue('theta2')}
           onChange={(e, val) => handleAngleChange('theta2', val * Math.PI / 180)}
           size="small"
           sx={sliderSx}
@@ -104,20 +114,22 @@ const JointController = ({
       <Box sx={{ mt: 2 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <Typography variant="body2" fontFamily="monospace">θ3:</Typography>
-          <TextField
-            type="number"
+          <DeferredNumericField
             size="small"
-            inputProps={{ min: -180, max: 180, step: 1 }}
-            value={Math.round(angles.theta3 * 180 / Math.PI)}
-            onChange={(e) => handleNumberInput('theta3', parseFloat(e.target.value) || 0)}
+            value={Math.round(getDegreeValue('theta3'))}
+            onCommit={(next) => handleNumberInput('theta3', next)}
+            formatValue={(next) => String(Math.round(Number(next) || 0))}
             sx={inputSx}
           />
           <Typography variant="body2">°</Typography>
+          <Typography variant="body2" sx={{ minWidth: '84px', fontFamily: 'monospace', color: 'text.secondary' }}>
+            {renderAngleReadout('theta3')}
+          </Typography>
         </Box>
         <Slider
           min={-180}
           max={180}
-          value={angles.theta3 * 180 / Math.PI}
+          value={getDegreeValue('theta3')}
           onChange={(e, val) => handleAngleChange('theta3', val * Math.PI / 180)}
           size="small"
           sx={sliderSx}

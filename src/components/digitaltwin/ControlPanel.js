@@ -1,22 +1,14 @@
 import { useEffect, useRef } from 'react';
-import { Box, TextField, Typography, Alert, Paper, Stack, Slider } from '@mui/material';
+import { Box, Typography, Alert, Paper, Stack, Slider } from '@mui/material';
 import { CENTEROFFSETDEG } from '../../constants/robotConstants';
+import DeferredNumericField from '../common/DeferredNumericField';
 
 const JOINT_KEYS = ['J1', 'J2', 'J3', 'J4'];
-const STEP_MIN = 0;
-const STEP_MAX = 1023;
 const DEG_PER_STEP = 0.29;
-const ANGLE_MIN = 0;
-const ANGLE_MAX = parseFloat((STEP_MAX * DEG_PER_STEP).toFixed(2)); // ~296.67°
 const DISPLAY_CENTER = CENTEROFFSETDEG;
 const DISPLAY_MIN = -DISPLAY_CENTER;
 const DISPLAY_MAX = DISPLAY_CENTER;
-const angleToSteps = (deg) => Math.round(Math.max(STEP_MIN, Math.min(STEP_MAX, deg / DEG_PER_STEP)));
 const stepsToAngle = (steps) => parseFloat((steps * DEG_PER_STEP).toFixed(2));
-const FEEDRATE_MIN = 10;
-const FEEDRATE_MAX = 1000;
-
-
 function ControlPanel({
   jointTargets,
   setJointTargets,
@@ -33,14 +25,11 @@ function ControlPanel({
 }) {
   const {
     isConnected,
-    error,
     isSerialAvailable,
     setError,
   } = connection;
 
   const readBufferRef = useRef('');
-  const errorDismissTimerRef = useRef(null);
-  const errorClearTimerRef = useRef(null);
   const sliderSx = { width: '90%', ml: 1 };
   const inputSx = { width: '72px', '& input': { textAlign: 'center', py: '4px', fontSize: '12px' } };
 
@@ -96,21 +85,14 @@ function ControlPanel({
     // ensure the reading loop is started
     connection.startReading();
     return () => unsubscribe();
-  }, [isConnected, connection, setJointTargetsFromHardware, setError]);
+  }, [connection, isConnected, setHasSynced, setIsSyncing, setJointTargetsFromHardware, setError]);
   
-  const clampFeedrateValue = (value) => Math.max(FEEDRATE_MIN, Math.min(FEEDRATE_MAX, value));
-
   const handleJointChange = (joint, value) => {
-    const numeric = clampDisplayedAngle(parseFloat(value) || 0);
+    const numeric = clampDisplayedAngle(Number(value) || 0);
     setJointTargets((prev) => ({
       ...prev,
       [joint]: parseFloat((numeric + DISPLAY_CENTER).toFixed(2)),
     }));
-  };
-
-  const handleFeedrateChange = (value) => {
-    const numeric = clampFeedrateValue(parseInt(value, 10) || 0);
-    setFeedrate(numeric);
   };
 
   const Joints_Min_max = {
@@ -151,12 +133,11 @@ function ControlPanel({
                       size="small"
                       sx={{ ...sliderSx, flex: 1, ml: 0 }}
                     />
-                    <TextField
-                      type="number"
+                    <DeferredNumericField
                       size="small"
-                      inputProps={{ min: DISPLAY_MIN, max: DISPLAY_MAX, step: DEG_PER_STEP }}
                       value={getDisplayedJointValue(joint)}
-                      onChange={(e) => handleJointChange(joint, e.target.value)}
+                      onCommit={(next) => handleJointChange(joint, next)}
+                      formatValue={(next) => Number(next).toFixed(2)}
                       sx={inputSx}
                     />
                   </Box>

@@ -1,7 +1,8 @@
 import { useMemo, forwardRef, useImperativeHandle, useCallback } from 'react';
-import { Box, TextField, Paper, Stack, Typography, Slider, Checkbox } from '@mui/material';
+import { Box, Paper, Stack, Typography, Slider, Checkbox } from '@mui/material';
 import * as THREE from 'three';
 import useKinematics from './hooks/useKinematics';
+import DeferredNumericField from '../common/DeferredNumericField';
 const XYZ_MIN = -0.3;
 const XYZ_MAX = 0.3;
 const Y_MIN = 0;
@@ -68,7 +69,7 @@ const PoseControl = forwardRef(function PoseControl({
   }, [currentPose, kinematicMask, solvePoseChange]);
 
   const handlePoseChange = (axis, value) => {
-    const numeric = parseFloat(value) || 0;
+    const numeric = Number(value) || 0;
     const nextPose = { ...currentPose, [axis]: numeric };
     solvePoseChange(nextPose, [kinematicMask.x, kinematicMask.y, kinematicMask.z, kinematicMask.roll, kinematicMask.pitch, kinematicMask.yaw], 'No solution — pose unreachable');
   };
@@ -140,12 +141,12 @@ const PoseControl = forwardRef(function PoseControl({
                         size="small"
                         sx={{ ...sliderSx, flex: 1, ml: 0 }}
                       />
-                      <TextField
-                        type="number"
+                      <DeferredNumericField
                         size="small"
-                        inputProps={{ min: minVal, max: maxVal, step: STEP }}
                         value={currentPose[axis].toFixed(3)}
-                        onChange={(e) => handlePoseChange(axis, e.target.value)}
+                        onCommit={(next) => handlePoseChange(axis, next)}
+                        formatValue={(next) => Number(next).toFixed(3)}
+                        clampValue={(next) => Math.max(minVal, Math.min(maxVal, next))}
                         sx={inputSx}
                       />
                     </Box>
@@ -166,7 +167,6 @@ const PoseControl = forwardRef(function PoseControl({
                   sx={{ pt: index === 0 ? 0 : 1, borderTop: index === 0 ? 'none' : '1px solid #eee' }}
                 >
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-
                     <Checkbox
                       size="small"
                       checked={kinematicMask[axis]}
@@ -174,8 +174,13 @@ const PoseControl = forwardRef(function PoseControl({
                       inputProps={{ 'aria-label': `${axis} orientation mask` }}
                       sx={{ p: 0.25 }}
                     />
-                    <Typography variant="body2" fontFamily="monospace" textTransform="uppercase" sx={{ minWidth: '28px' }}>
-                      {axis[0]}
+                    <Typography
+                      variant="body2"
+                      fontFamily="monospace"
+                      textTransform="uppercase"
+                      sx={{ minWidth: '60px', color: axis === 'yaw' ? '#0800ff' : axis === 'pitch' ? '#43a047' : '#d32f2f', fontWeight: 'bold' }}
+                    >
+                      {axis}
                     </Typography>
                     <Slider
                       min={ORIENTATION_MIN}
@@ -186,12 +191,12 @@ const PoseControl = forwardRef(function PoseControl({
                       size="small"
                       sx={{ ...sliderSx, flex: 1, ml: 0 }}
                     />
-                    <TextField
-                      type="number"
+                    <DeferredNumericField
                       size="small"
-                      inputProps={{ min: ORIENTATION_MIN, max: ORIENTATION_MAX, step: ORIENTATION_STEP }}
                       value={currentPose[axis].toFixed(1)}
-                      onChange={(e) => handlePoseChange(axis, e.target.value)}
+                      onCommit={(next) => handlePoseChange(axis, next)}
+                      formatValue={(next) => Number(next).toFixed(1)}
+                      clampValue={(next) => Math.max(ORIENTATION_MIN, Math.min(ORIENTATION_MAX, next))}
                       sx={inputSx}
                     />
                   </Box>

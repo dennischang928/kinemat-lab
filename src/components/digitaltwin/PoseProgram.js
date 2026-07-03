@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useRef, forwardRef, useImperativeHandle } from 'react';
+import { useEffect, useMemo, useState, useRef, forwardRef, useImperativeHandle, useCallback } from 'react';
 import {
 	Box,
 	Button,
@@ -17,16 +17,12 @@ import AddIcon from '@mui/icons-material/Add';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
-import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import SaveAltIcon from '@mui/icons-material/SaveAlt';
-import FastRewindRoundedIcon from '@mui/icons-material/FastRewindRounded';
-import FastForwardRoundedIcon from '@mui/icons-material/FastForwardRounded';
 import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
-import PauseRoundedIcon from '@mui/icons-material/PauseRounded';
-import EditIcon from '@mui/icons-material/Edit';
 import CheckIcon from '@mui/icons-material/Check';
 import CloseIcon from '@mui/icons-material/Close';
-import { interpolateJoints, lerp, interpolateCartesianWithIK, buildCartesianInterpolationPlan } from '../helper/kinematics/linear_interpolation';
+import { buildCartesianInterpolationPlan } from '../helper/kinematics/linear_interpolation';
+import DeferredNumericField from '../common/DeferredNumericField';
 
 const STEP_MAX = 1023;
 const DEG_PER_STEP = 0.29;
@@ -71,15 +67,7 @@ const ProgramInner = forwardRef(function PoseProgram({
 	const [currentStepIndex, setCurrentStepIndex] = useState(0);
 	const isPlayingRef = useRef(false);
 	const lastG0TimeRef = useRef(null);
-
-	const togglePlayPause = () => {
-		if (isRunning) {
-			isPlayingRef.current = false;
-			setIsRunning(false);
-		} else {
-			runProgram();
-		}
-	};
+	const frameDelayMs = useMemo(() => Math.round(1000 / fps), [fps]);
 
 	const isInteractionLocked = controlsDisabled || isRunning;
 
@@ -87,9 +75,9 @@ const ProgramInner = forwardRef(function PoseProgram({
 		setCurrentStepIndex(0);
 	}, [savedInterpolation]);
 
-	const hasFrames = useMemo(() => frames.length > 0, [frames.length]);
+	const hasFrames = frames.length > 0;
 
-	const handleAddFrame = () => {
+	const handleAddFrame = useCallback(() => {
 		const nextId = Date.now() + Math.floor(Math.random() * 1000);
 		const nextIndex = frames.length + 1;
 
@@ -114,7 +102,7 @@ const ProgramInner = forwardRef(function PoseProgram({
 				},
 			},
 		]);
-	};
+	}, [currentPos, feedrate, frames.length, jointTargets]);
 
 	const moveFrame = (index, direction) => {
 		const nextIndex = index + direction;
@@ -135,7 +123,7 @@ const ProgramInner = forwardRef(function PoseProgram({
 	};
 
 	const updateFrameDelay = (id, value) => {
-		const numeric = Math.max(0, parseInt(value, 10) || 0);
+		const numeric = Math.max(0, Math.round(Number(value) || 0));
 		setFrames((prev) => prev.map((frame) => (frame.id === id ? { ...frame, delayMs: numeric } : frame)));
 	};
 
@@ -143,16 +131,6 @@ const ProgramInner = forwardRef(function PoseProgram({
 	const GapEditor = ({ from }) => {
 		const [editing, setEditing] = useState(false);
 		const [hovered, setHovered] = useState(false);
-		const [value, setValue] = useState(from?.delayMs || 0);
-
-		useEffect(() => {
-			setValue(from?.delayMs || 0);
-		}, [from?.delayMs]);
-
-		const save = () => {
-			updateFrameDelay(from.id, Math.max(0, parseInt(value, 10) || 0));
-			setEditing(false);
-		};
 
 		return (
 			<Box
@@ -169,7 +147,7 @@ const ProgramInner = forwardRef(function PoseProgram({
 				onMouseEnter={() => setHovered(true)}
 				onMouseLeave={() => setHovered(false)}
 			>
-				{(hovered || editing || value > 0) ? (
+				{(hovered || editing || (from?.delayMs || 0) > 0) ? (
 					<Paper
 						elevation={0}
 						onClick={() => !editing && setEditing(true)}
@@ -185,32 +163,33 @@ const ProgramInner = forwardRef(function PoseProgram({
 							backgroundColor: editing ? '#eaf4ff' : 'transparent',
 							cursor: editing ? 'default' : 'pointer',
 						}}
-					>
+						>
 						{editing ? (
 							<Stack direction="row" spacing={0.5} alignItems="center">
-								<TextField
+								<DeferredNumericField
 									size="small"
-									type="number"
-									value={value}
-									onChange={(e) => setValue(Math.max(0, parseInt(e.target.value || 0, 10)))}
-									inputProps={{ min: 0 }}
+									autoFocus
+									value={from?.delayMs || 0}
+									onCommit={(next) => updateFrameDelay(from.id, next)}
+									formatValue={(next) => String(Math.max(0, Math.round(Number(next) || 0)))}
+									clampValue={(next) => Math.max(0, next)}
 									sx={{ width: 64 }}
 								/>
-								<IconButton size="small" color="primary" onClick={save} aria-label="save-delay">
+								<IconButton size="small" color="primary" onClick={() => setEditing(false)} aria-label="save-delay">
 									<CheckIcon fontSize="small" />
 								</IconButton>
-								<IconButton color="secondary" size="small" onClick={() => { setValue(from?.delayMs || 0); setEditing(false); }} aria-label="cancel-delay">
+								<IconButton color="secondary" size="small" onMouseDown={(e) => e.preventDefault()} onClick={() => setEditing(false)} aria-label="cancel-delay">
 									<CloseIcon fontSize="small" />
 								</IconButton>
-								<IconButton color="error" size="small" onClick={(e) => { e.stopPropagation(); updateFrameDelay(from.id, 0); setEditing(false); }} aria-label="delete-delay">
+								<IconButton color="error" size="small" onMouseDown={(e) => e.preventDefault()} onClick={(e) => { e.stopPropagation(); updateFrameDelay(from.id, 0); setEditing(false); }} aria-label="delete-delay">
 									<DeleteOutlineIcon fontSize="small" />
 								</IconButton>
 							</Stack>
 						) : (
 							<Stack direction="row" spacing={0.5} alignItems="center" sx={{ width: '100%', justifyContent: 'center' }}>
-								{value > 0 ? (
+								{(from?.delayMs || 0) > 0 ? (
 									<Typography variant="caption" sx={{ fontWeight: 600, color: '#ff6f00' }}>
-										⏱ {value}ms
+										⏱ {from?.delayMs || 0}ms
 									</Typography>
 								) : (
 									<Stack direction="row" alignItems="center" spacing={0.5}>
@@ -242,7 +221,7 @@ const ProgramInner = forwardRef(function PoseProgram({
 		setFeedrate(clampFeedrate(parseInt(frame.feedrate, 10) || FEEDRATE_MIN));
 	};
 
-	const buildPlaybackPlan = () => {
+	const buildPlaybackPlan = useCallback(() => {
 		if (!frames.length) return { plan: [], cartesianFallback: false };
 
 		const interpolationSegments = clampInterpolationSteps(parseInt(interpolationSteps, 10) || INTERP_STEPS_DEFAULT);
@@ -271,7 +250,7 @@ const ProgramInner = forwardRef(function PoseProgram({
 		}
 
 		return result;
-	};
+	}, [frames, interpolationSteps, useLinearInterpolation]);
 
 	useEffect(() => {
 		const result = buildPlaybackPlan();
@@ -280,10 +259,9 @@ const ProgramInner = forwardRef(function PoseProgram({
 		if (typeof onPlanChange === 'function') {
 			onPlanChange(result.plan || [], Boolean(result.cartesianFallback), useLinearInterpolation);
 		}
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [frames, useLinearInterpolation, interpolationSteps]);
+	}, [buildPlaybackPlan, onPlanChange, useLinearInterpolation]);
 
-	const applyPoseStep = async (joints, frameFeedrate, { skipVisualUpdate = false, actuallySend = false } = {}) => {
+	const applyPoseStep = useCallback(async (joints, frameFeedrate, { skipVisualUpdate = false, actuallySend = false } = {}) => {
 		if (!skipVisualUpdate) {
 			setJointTargets((prev) => ({
 				...prev,
@@ -308,9 +286,7 @@ const ProgramInner = forwardRef(function PoseProgram({
 
 		if (useLinearInterpolation) {
 			const now = Date.now();
-			const diff = lastG0TimeRef.current ? now - lastG0TimeRef.current : 0;
 			lastG0TimeRef.current = now;
-			// console.log(`${command.trim()} @ +${diff}ms (target: ${frameDelayMs}ms)`);
 		} else {
 			// console.log(command);
 		}
@@ -335,7 +311,7 @@ const ProgramInner = forwardRef(function PoseProgram({
 				throw new Error('No serial connection available to send program.');
 			}
 		}
-	};
+	}, [connection, isTorqueEnabled, setFeedrate, setJointTargets, useLinearInterpolation]);
 
 	const handleSliderChange = (event, newValue) => {
 		if (newValue !== currentStepIndex && newValue >= 0 && newValue < savedInterpolation.length) {
@@ -344,7 +320,7 @@ const ProgramInner = forwardRef(function PoseProgram({
 		}
 	};
 
-	const runProgram = async () => {
+	const runProgram = useCallback(async () => {
 		// Preview-only run: update the digital twin visualization frame-by-frame
 		// but do not perform any serial I/O. This allows users to preview and
 		// tweak programs even when torque is off or no connection is present.
@@ -424,10 +400,10 @@ const ProgramInner = forwardRef(function PoseProgram({
 				setProgramButtonLabel('Send Program');
 			}
 		}
-	};
+	}, [applyPoseStep, buildPlaybackPlan, currentStepIndex, frameDelayMs, hasFrames, isPlayingRef, onError, savedInterpolation, setFeedrate, setJointTargets, setProgramButtonLabel, useLinearInterpolation]);
 
 	// Real send: performs serial I/O and enforces torque/connection checks.
-	const sendProgram = async () => {
+	const sendProgram = useCallback(async () => {
 		if (!hasFrames) {
 			onError('Add at least one timeframe to run the pose program.');
 			return;
@@ -541,7 +517,7 @@ const ProgramInner = forwardRef(function PoseProgram({
 				setProgramButtonLabel('Send Program');
 			}
 		}
-	};
+	}, [applyPoseStep, buildPlaybackPlan, connection, currentStepIndex, frameDelayMs, hasFrames, isPlayingRef, isTorqueEnabled, onError, savedInterpolation, setFeedrate, setJointTargets, setProgramButtonLabel, useLinearInterpolation]);
 
 	// Expose program actions via ref for parent component control
 	useImperativeHandle(ref, () => ({
@@ -550,20 +526,17 @@ const ProgramInner = forwardRef(function PoseProgram({
 		sendProgram,
 		getSavedInterpolation: () => savedInterpolation,
 		setCurrentStepIndex: (idx) => setCurrentStepIndex(idx),
-	}), [handleAddFrame, hasFrames, savedInterpolation, runProgram, sendProgram]);
+	}), [handleAddFrame, savedInterpolation, runProgram, sendProgram]);
 
 	const handleInterpolationStepsChange = (value) => {
-		const numeric = clampInterpolationSteps(parseInt(value, 10) || INTERP_STEPS_MIN);
+		const numeric = clampInterpolationSteps(Math.round(Number(value) || INTERP_STEPS_MIN));
 		setInterpolationSteps(numeric);
 	};
 
 	const handleFpsChange = (value) => {
-		const numeric = clampFps(parseInt(value, 10) || FPS_DEFAULT);
+		const numeric = clampFps(Math.round(Number(value) || FPS_DEFAULT));
 		setFps(numeric);
 	};
-
-	// Computed delay per frame in ms based on FPS
-	const frameDelayMs = useMemo(() => Math.round(1000 / fps), [fps]);
 
 	return (
 		<Paper sx={{ p: 2 }}>
@@ -601,24 +574,24 @@ const ProgramInner = forwardRef(function PoseProgram({
 					/>
 
 					{useLinearInterpolation && (
-						<TextField
+						<DeferredNumericField
 							size="small"
-							type="number"
 							label="frames"
 							value={interpolationSteps}
-							onChange={(e) => handleInterpolationStepsChange(e.target.value)}
-							inputProps={{ min: INTERP_STEPS_MIN, max: INTERP_STEPS_MAX, step: 1 }}
+							onCommit={(next) => handleInterpolationStepsChange(next)}
+							formatValue={(next) => String(Math.round(Number(next) || 0))}
+							clampValue={(next) => clampInterpolationSteps(next)}
 							disabled={isInteractionLocked}
 						/>
 					)}
 					{useLinearInterpolation && (
-						<TextField
+						<DeferredNumericField
 							size="small"
-							type="number"
 							label="fps"
 							value={fps}
-							onChange={(e) => handleFpsChange(e.target.value)}
-							inputProps={{ min: FPS_MIN, max: FPS_MAX, step: 1 }}
+							onCommit={(next) => handleFpsChange(next)}
+							formatValue={(next) => String(Math.round(Number(next) || 0))}
+							clampValue={(next) => clampFps(next)}
 							disabled={isInteractionLocked}
 						/>
 					)}
@@ -746,4 +719,3 @@ const ProgramInner = forwardRef(function PoseProgram({
 ProgramInner.displayName = 'PoseProgram';
 
 export default ProgramInner;
-

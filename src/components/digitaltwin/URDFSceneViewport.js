@@ -148,7 +148,7 @@ const buildScenePoseFromFkMatrix = (fkMatrixValues) => {
  * Returns coordinates remapped from Three.js (Y-up) to ROS (Z-up):
  *   { position: { x, y, z }, quaternion }
  */
-const readMeshWorldPose = (mesh) => {
+const readMeshWorldPose = (mesh, { includeRotation = true } = {}) => {
   const worldPos = new THREE.Vector3();
   const worldQuat = new THREE.Quaternion();
   
@@ -157,11 +157,16 @@ const readMeshWorldPose = (mesh) => {
     mesh.getWorldQuaternion(worldQuat);
   }
 
-  return {
+  const pose = {
     // Rotate Three.js Y-up coordinates into ROS Z-up coordinates with +90° about X.
     position: { x: worldPos.x, y: worldPos.y, z: worldPos.z },
-    quaternion: worldQuat,
   };
+
+  if (includeRotation) {
+    pose.quaternion = worldQuat;
+  }
+
+  return pose;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -254,10 +259,10 @@ function SceneContent({
    * Run the IK solver while the handle is being dragged.
    * If the pose is unreachable, restore the last valid scene pose.
    */
-  const handleTransformControlChange = (meshRef, onComplete) => {
+  const handleTransformControlChange = (meshRef, onComplete, options = {}) => {
     if (!meshRef?.current) return false;
 
-    const pose = readMeshWorldPose(meshRef.current);
+    const pose = readMeshWorldPose(meshRef.current, options);
     if (typeof onComplete === 'function') {
       const result = onComplete(pose);
       if (result === false) {
@@ -274,10 +279,10 @@ function SceneContent({
   /**
    * Forward the dragged pose upstream while the user is interacting with the handle.
    */
-  const handleTransformControlObjectChange = (meshRef) => {
+  const handleTransformControlObjectChange = (meshRef, options = {}) => {
     return handleTransformControlChange(meshRef, (pose) => {
         return onSceneTransformation?.(pose);
-    });
+    }, options);
   };
 
   // ── Path visualisation ─────────────────────────────────────────────────────
@@ -372,8 +377,8 @@ function SceneContent({
           showY={kinematicMask.y}//&&
           showZ={kinematicMask.z}//&&
           onMouseDown={useWorldTranslation? lockOrbit : null}
-          onObjectChange={useWorldTranslation ? () => handleTransformControlObjectChange(meshRef) : null}
-          onMouseUp={useWorldTranslation? unlockOrbit: () => handleTransformControlObjectChange(meshRef) }
+          onObjectChange={useWorldTranslation ? () => handleTransformControlObjectChange(meshRef, { includeRotation: false }) : null}
+          onMouseUp={useWorldTranslation ? unlockOrbit : () => handleTransformControlObjectChange(meshRef, { includeRotation: false }) }
         />
       )}
       {showTransformControls && handleReady && (
@@ -386,7 +391,7 @@ function SceneContent({
           showY={kinematicMask.pitch }//&&
           showZ={kinematicMask.yaw }//&&
           onMouseDown={lockOrbit}
-          onObjectChange={() => handleTransformControlObjectChange(meshRef)}
+          onObjectChange={() => handleTransformControlObjectChange(meshRef, { includeRotation: true })}
           onMouseUp={unlockOrbit}
         />
       )}

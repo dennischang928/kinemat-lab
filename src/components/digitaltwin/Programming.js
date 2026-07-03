@@ -1,10 +1,9 @@
-import { useState, useMemo, useRef, forwardRef, useImperativeHandle } from 'react';
-import { Box, Button, TextField, Paper, Stack, Typography, Alert, Fade, Slider } from '@mui/material';
-import SendIcon from '@mui/icons-material/Send';
-import SyncIcon from '@mui/icons-material/Sync';
+import { useState, useMemo, useRef, forwardRef, useImperativeHandle, useCallback } from 'react';
+import { Box, Button, Paper, Stack, Typography, Slider } from '@mui/material';
 import SaveAltIcon from '@mui/icons-material/SaveAlt';
 import PoseProgram from './PoseProgram';
 import useKinematics from './hooks/useKinematics';
+import DeferredNumericField from '../common/DeferredNumericField';
 
 // const FEEDRATE_MIN = 10;
 const XYZ_MIN = -0.3;
@@ -25,15 +24,13 @@ const Programming = forwardRef(function Programming({
 }, ref) {
   const { getPositionFromJoints, solveJointsFromPosition } = useKinematics();
   const [feedrate, setFeedrate] = useState(300);
-  const [showErrorAlert, setShowErrorAlert] = useState(false);
-  const [error, setError] = useState(null);
   const programRef = useRef(null);
 
   const currentPos = useMemo(() => {
     return getPositionFromJoints(jointTargets);
   }, [jointTargets, getPositionFromJoints]);
 
-  const handleViewportTransformChange = (position) => {
+  const handleViewportTransformChange = useCallback((position) => {
     const solvedJoints = solveJointsFromPosition({
       x: position?.x ?? currentPos.x,
       y: position?.y ?? currentPos.y,
@@ -47,16 +44,11 @@ const Programming = forwardRef(function Programming({
         ...prev,
         ...solvedJoints,
       }));
-      setShowErrorAlert(false);
-      setError(null);
       return true;
     }
 
-    setError('No solution — position unreachable');
-    setShowErrorAlert(true);
-    setTimeout(() => setShowErrorAlert(false), 5000);
     return false;
-  };
+  }, [currentPos, jointTargets, setJointTargets, solveJointsFromPosition]);
 
   useImperativeHandle(ref, () => ({
     setCurrentStepIndex: handleSetCurrentStepIndex,
@@ -64,37 +56,16 @@ const Programming = forwardRef(function Programming({
     sendProgram: handleSendProgram,
     getSavedInterpolation: handleGetSavedInterpolation,
     handleViewportTransformChange: (position) => {
-      const solvedJoints = solveJointsFromPosition({
-        x: position?.x ?? currentPos.x,
-        y: position?.y ?? currentPos.y,
-        z: position?.z ?? currentPos.z,
-      }, jointTargets, {
-        mask: [true, true, true, false, false, false],
-      });
-
-      if (solvedJoints && setJointTargets) {
-        setJointTargets((prev) => ({
-          ...prev,
-          ...solvedJoints,
-        }));
-        setShowErrorAlert(false);
-        setError(null);
-        return true;
-      }
-
-      setError('No solution — position unreachable');
-      setShowErrorAlert(true);
-      setTimeout(() => setShowErrorAlert(false), 5000);
-      return false;
+      return handleViewportTransformChange(position);
     },
     handleSceneTransformation: (scenePose) => {
       const position = scenePose?.position ?? scenePose;
       return handleViewportTransformChange(position);
     },
-  }), [currentPos, jointTargets, setJointTargets, solveJointsFromPosition, handleViewportTransformChange]);
+  }), [handleViewportTransformChange]);
 
   const handlePosChange = (axis, value) => {
-    const numeric = parseFloat(value) || 0;
+    const numeric = Number(value) || 0;
     const newPos = { ...currentPos, [axis]: numeric };
 
     const solvedJoints = solveJointsFromPosition(newPos, jointTargets, {
@@ -106,21 +77,10 @@ const Programming = forwardRef(function Programming({
         ...prev,
         ...solvedJoints,
       }));
-      setShowErrorAlert(false);
-      setError(null);
     } else {
-      setError('No solution — position unreachable');
-      setShowErrorAlert(true);
-      setTimeout(() => setShowErrorAlert(false), 5000);
+      console.warn('No solution — position unreachable');
     }
   };
-
-  const showError = (message, timeoutMs = 3000) => {
-    setError(message);
-    setShowErrorAlert(true);
-    setTimeout(() => setShowErrorAlert(false), timeoutMs);
-  };
-
 
   function handleSendProgram() {
     if (programRef.current && typeof programRef.current.sendProgram === 'function') {
@@ -155,7 +115,7 @@ const Programming = forwardRef(function Programming({
       return;
     }
 
-    showError('Pose Program is not ready yet.');
+    console.warn('Pose Program is not ready yet.');
   };
 
   return (
@@ -186,12 +146,12 @@ const Programming = forwardRef(function Programming({
                         size="small"
                         sx={{ flex: 1, ml: 0 }}
                       />
-                      <TextField
-                        type="number"
+                      <DeferredNumericField
                         size="small"
-                        inputProps={{ min: minVal, max: maxVal, step: STEP }}
                         value={currentPos[axis].toFixed(3)}
-                        onChange={(e) => handlePosChange(axis, e.target.value)}
+                        onCommit={(next) => handlePosChange(axis, next)}
+                        formatValue={(next) => Number(next).toFixed(3)}
+                        clampValue={(next) => Math.max(minVal, Math.min(maxVal, next))}
                         sx={{ width: '72px', '& input': { textAlign: 'center', py: '4px', fontSize: '12px' } }}
                       />
                     </Box>
@@ -214,7 +174,7 @@ const Programming = forwardRef(function Programming({
               setFeedrate={setFeedrate}
               connection={connection}
               isTorqueEnabled={isTorqueEnabled}
-              onError={showError}
+              onError={(message) => console.warn(message)}
               hideRunButton={false}
               controlsDisabled={controlsDisabled}
               onPlanChange={onPlanChange}

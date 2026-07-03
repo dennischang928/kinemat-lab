@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Stage, Layer, Circle, Line, Text, Group, Arrow } from 'react-konva';
-import { Box, Paper, FormControlLabel, Checkbox, Typography, IconButton, TextField, Button } from '@mui/material';
+import { Box, Paper, FormControlLabel, Checkbox, Typography, IconButton, Button } from '@mui/material';
 import { calculateForwardKinematics } from '../kinematics/forwardkinematics';
 import SettingsIcon from '@mui/icons-material/Settings';
+import DeferredNumericField from '../common/DeferredNumericField';
 
 const DEFAULT_ANGLES = {
   thetaBase: 0,
@@ -823,20 +824,20 @@ const Robot2d = ({ angles, onAngleChange, selectedStep = 4, selectedJoint = 1, s
           <Typography variant="subtitle2" sx={{ mb: 1 }}>Link Lengths (mm)</Typography>
           <Box sx={{ display: 'grid', gap:2 }}>
             {['L1', 'L2', 'L3'].map((key) => (
-              <TextField
+              <DeferredNumericField
                 key={key}
                 size="small"
-                type="number"
                 label={key}
-                inputProps={{ min: 1, step: 1 }}
                 value={draftLinkLengths[key]}
-                onChange={(e) => {
-                  const raw = Number(e.target.value);
+                onCommit={(next) => {
+                  const numeric = Math.max(1, Math.round(Number(next) || 0));
                   setDraftLinkLengths((prev) => ({
                     ...prev,
-                    [key]: Number.isFinite(raw) ? raw : prev[key],
+                    [key]: numeric,
                   }));
                 }}
+                formatValue={(next) => String(Math.max(1, Math.round(Number(next) || 0)))}
+                clampValue={(next) => Math.max(1, next)}
               />
             ))}
           </Box>
