@@ -1,14 +1,7 @@
-import { useState, useMemo, forwardRef, useImperativeHandle } from 'react';
+import { useMemo, forwardRef, useImperativeHandle, useCallback } from 'react';
 import { Box, TextField, Paper, Stack, Typography, Slider, Checkbox } from '@mui/material';
 import * as THREE from 'three';
-import DirectionsWalkIcon from '@mui/icons-material/DirectionsWalk';
-import DirectionsRunIcon from '@mui/icons-material/DirectionsRun';
-import DirectionsBikeIcon from '@mui/icons-material/DirectionsBike';
-import AirplanemodeActiveIcon from '@mui/icons-material/AirplanemodeActive';
-import RocketLaunchIcon from '@mui/icons-material/RocketLaunch';
 import useKinematics from './hooks/useKinematics';
-const FEEDRATE_MIN = 10;
-const FEEDRATE_MAX = 1000;
 const XYZ_MIN = -0.3;
 const XYZ_MAX = 0.3;
 const Y_MIN = 0;
@@ -29,23 +22,12 @@ const PoseControl = forwardRef(function PoseControl({
   onKinematicMaskChange = null,
 }, ref) {
   const { getPoseFromJoints, solveJointsFromPose } = useKinematics();
-  const [feedrate, setFeedrate] = useState(300);
-  const [showErrorAlert, setShowErrorAlert] = useState(false);
-  const [error, setError] = useState(null);
-
-  const speedMarks = [
-    { value: 100, label: <DirectionsWalkIcon fontSize="small" /> },
-    { value: 300, label: <DirectionsRunIcon fontSize="small" /> },
-    { value: 500, label: <DirectionsBikeIcon fontSize="small" /> },
-    { value: 700, label: <AirplanemodeActiveIcon fontSize="small" /> },
-    { value: 900, label: <RocketLaunchIcon fontSize="small" /> },
-  ];
 
   const currentPose = useMemo(() => {
     return getPoseFromJoints(jointTargets);
   }, [jointTargets, getPoseFromJoints]);
 
-  const solvePoseChange = (nextPose, mask, failureMessage) => {
+  const solvePoseChange = useCallback((nextPose, mask, failureMessage) => {
     if (!jointTargets || !setJointTargets) {
       return false;
     }
@@ -58,22 +40,16 @@ const PoseControl = forwardRef(function PoseControl({
         ...prev,
         ...solvedJoints,
       }));
-      setShowErrorAlert(false);
-      setError(null);
       return true;
     } 
+    console.warn(failureMessage);
     return false;
+  }, [jointTargets, setJointTargets, solveJointsFromPose]);
 
-    setError(failureMessage);
-    setShowErrorAlert(true);
-    setTimeout(() => setShowErrorAlert(false), 5000);
-  };
-
-  const handleSceneTransformation = (scenePose = {}) => {
+  const handleSceneTransformation = useCallback((scenePose = {}) => {
     const position = scenePose?.position;
     const quaternion = scenePose?.quaternion;
     const euler = quaternion ? new THREE.Euler().setFromQuaternion(quaternion, 'XYZ') : null;
-    console.log("euler", euler);
     const nextPose = {
       ...currentPose, // Start with current pose as base (in order to reach a solution cloest to this pose)
       x: position?.x ?? currentPose.x,
@@ -89,7 +65,7 @@ const PoseControl = forwardRef(function PoseControl({
       [kinematicMask.x, kinematicMask.y, kinematicMask.z, kinematicMask.roll, kinematicMask.pitch, kinematicMask.yaw],
       'No solution — pose unreachable',
     );
-  };
+  }, [currentPose, kinematicMask, solvePoseChange]);
 
   const handlePoseChange = (axis, value) => {
     const numeric = parseFloat(value) || 0;
@@ -117,26 +93,10 @@ const PoseControl = forwardRef(function PoseControl({
     }
   };
 
-  const handleFeedrateChange = (value) => {
-    setFeedrate(Math.max(FEEDRATE_MIN, Math.min(FEEDRATE_MAX, parseInt(value, 10) || FEEDRATE_MIN)));
-  };
-
-  const showError = (message, timeoutMs = 3000) => {
-    setError(message);
-    setShowErrorAlert(true);
-    setTimeout(() => setShowErrorAlert(false), timeoutMs);
-  };
-
-  const handleSyncFromArm = () => {
-    showError('Sync feature coming soon');
-  };
-
-
   useImperativeHandle(ref, () => ({
     setCurrentStepIndex: () => {},
-    
     handleSceneTransformation,
-  }), [ handleSceneTransformation]);
+  }), [handleSceneTransformation]);
 
   const sliderSx = { width: '90%', ml: 1 };
   const inputSx = { width: '72px', '& input': { textAlign: 'center', py: '4px', fontSize: '12px' } };

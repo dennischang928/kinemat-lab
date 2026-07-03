@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Box, Paper, Stack, IconButton, Typography, FormControlLabel, Switch, Divider } from '@mui/material';
-import { Canvas, useThree } from '@react-three/fiber';
+import { Canvas } from '@react-three/fiber';
 import { Html, OrbitControls, TransformControls } from '@react-three/drei';
 import * as THREE from 'three';
 import SettingsIcon from '@mui/icons-material/Settings';
@@ -28,9 +28,6 @@ const DEFAULT_VIEW_SETTINGS = {
 
 /** Servo degree range used to center joint angles. 296.67° total, mid = 148.335° */
 const JOINT_DEGREE_CENTER = 148.335;
-
-/** Rotation that converts FK (Z-up / ROS) coordinates to Three.js (Y-up) scene space. */
-const FK_TO_SCENE_ROTATION = new THREE.Matrix4().makeRotationX(-Math.PI / 2);
 
 /** Webpack require.context for all bundled pincher-arm description assets. */
 const pincherDescriptionContext = require.context(
@@ -217,9 +214,7 @@ function SceneContent({
   // Use separate refs so translate can sample position from one mesh
   // while rotate samples orientation from the other.
   const meshRef = useRef();
-  const meshRefRot = useRef();
   const pathGroupRef = useRef();
-  const audioContextRef = useRef(null);
   const [isOrbitLocked, setIsOrbitLocked] = useState(false);
   const [handleReady, setHandleReady] = useState(false);
   // const [handleReady, setHandleReady] = useState(false);
