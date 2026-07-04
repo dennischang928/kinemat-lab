@@ -39,9 +39,7 @@
    2. Command Panel: **Send** with **Speed**; Gripper On/Off;
       1. Sync Button: most features are disabled until the robot is synced with the digital twin for safety. Sync requires a 3+ seconds to complete
       2. <img src="images/Screenshot%202026-07-04%20at%2017.05.18.png" alt="Command Panel" width="400" />
-    
    3. Joint Control: Use sliders to control the angles
-   
    4. Pose Control: 
        1. Masks tick Boxes: XYZ RPY;
        2. Because the PhantomX Pincher robot has only 4-DoF excluding the gripper, Only 4 variables are controllable at a time (e.g.: X, Y, Z, Yaw)
