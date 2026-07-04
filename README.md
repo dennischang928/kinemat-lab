@@ -31,3 +31,17 @@
    3. Click on the "⚙️" button to change link lengths.
   <img src="images/Screenshot%202026-07-04%20at%2016.48.48.png" alt="Settings" width="400" />
 
+
+2. Click on the "Digital Twin" button on the side bar to go to the **Digital Twin** page:
+   1. Connections Panel: Connect/Disconnect; Torque On/Off; Home;
+   <img src="images/Screenshot 2026-07-04 at 16.57.05.png" alt="Connections Panel" width="400" />
+    2. Command Panel: **Send** with **Speed**; Gripper On/Off;
+        - Sync Button: most features are disabled until the robot is synced with the digital twin for safety. Sync requires a 3+ seconds to complete.
+   <img src="images/Screenshot 2026-07-04 at 17.05.18.png" alt="Command Panel" width="400" /> 
+    3. Joint Control: Use sliders to control the angles
+    4. Pose Control: 
+       - Masks tick Boxes: XYZ RPY;
+         - Because the PhantomX Pincher robot has only 4-DoF excluding the gripper, Only 4 variables are controllable at a time (e.g.: X, Y, Z, Yaw)
+       - Input fields: Input desired end-effector pose in XYZ RPY
+    <img src="images/Screenshot 2026-07-04 at 17.12.36.png" alt="Pose Control" width="400" />
+    
