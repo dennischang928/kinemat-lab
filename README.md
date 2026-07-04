@@ -26,11 +26,11 @@
 ### Upon opening the web-app, you will land on the **2D Kinematic** page:
 ---
 1. Use the sliders/input fields to control the joints of the 3-DoF robotic arm and observe the changes in the end-effector position and orientation.
-<img src="images/Screenshot%202026-07-04%20at%2016.42.43.png" alt="Joint Control" width="400" />
+   1. <img src="images/Screenshot%202026-07-04%20at%2016.42.43.png" alt="Joint Control" width="400" />
 2. Click on 1, 2, 3, 4 and Play All buttons to see the animations and math derivations of the forward kinematics process.
- <img src="images/Screenshot%202026-07-04%20at%2016.46.09.png" alt="Animation" width="400" />
+   1. <img src="images/Screenshot%202026-07-04%20at%2016.46.09.png" alt="Animation" width="400" />
 3. Click on the "⚙️" button to change link lengths.
-<img src="images/Screenshot%202026-07-04%20at%2016.48.48.png" alt="Settings" width="400" />
+   1. <img src="images/Screenshot%202026-07-04%20at%2016.48.48.png" alt="Settings" width="400" />
 
 
 ### Click on the "Digital Twin" button on the side bar to go to the **Digital Twin** page:
@@ -48,3 +48,22 @@
     3. Input fields: Input desired end-effector pose in XYZ RPY
     4. <img src="images/Screenshot%202026-07-04%20at%2017.12.36.png" alt="Pose Control" width="400" />
  
+### Pincher DH Parameters:
+```
+ # DH table: [Rz, Tz, Tx, Rx]
+
+DH = [
+    [0, 0, 0, -sympy.pi/2],
+    [q1, 0.0605, 0, -sympy.pi/2],
+    [q2-sympy.pi/2, 0, 0.1060, 0],
+    [q3, 0, 0.1060, 0],
+    [q4, 0, 0.0645, sympy.pi],
+]
+
+```
+> See code in my [google collab](https://colab.research.google.com/drive/1llMRyLazrZ_MI5IJcQR3uzGe0sQIOXm5?usp=sharing).
+
+
+
+
+
