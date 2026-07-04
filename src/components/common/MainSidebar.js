@@ -1,7 +1,8 @@
-import { Box, List, ListItemButton, Tooltip } from '@mui/material';
+import { Box, List, ListItemButton, Tooltip, IconButton } from '@mui/material';
 import { useNavigate, useLocation } from 'react-router';
 import TuneIcon from '@mui/icons-material/Tune';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
+import GitHubIcon from '@mui/icons-material/GitHub';
 
 function MainSidebar() {
   const navigate = useNavigate();
@@ -87,6 +88,27 @@ function MainSidebar() {
           </Tooltip>
         ))}
       </List>
+
+      <Box sx={{ p: 1.5, borderTop: '1px solid #2a2a2a', display: 'flex', justifyContent: 'center' }}>
+        <Tooltip title="Project repository" placement="right" arrow>
+          <IconButton
+            component="a"
+            href="https://github.com/dennischang928/kinemat-firmware"
+            target="_blank"
+            rel="noreferrer"
+            aria-label="Project repository"
+            sx={{
+              color: '#d0d0d0',
+              '&:hover': {
+                color: '#ffffff',
+                bgcolor: '#2a2a2a',
+              },
+            }}
+          >
+            <GitHubIcon fontSize="medium" />
+          </IconButton>
+        </Tooltip>
+      </Box>
     </Box>
   );
 }
