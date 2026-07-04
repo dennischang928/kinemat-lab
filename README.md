@@ -1,71 +1,33 @@
-# Getting Started with Create React App
+# Kinemat 
+> An interactive and intuitive model for learning kinematics in robotics lives in [k.sengchon.com](http://k.sengchon.com) or [kinemat.netlify.app](http://kinemat.netlify.app); 
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+> Utilized by Dr. Amit Banerjee in ME457 course as an educational tool at the Pennsylvania State University Harrisuburg.
 
-## Available Scripts
+## Features:
+1. A 2D Kinematic model of a 3-DoF robotic arm.
+    - Visualization of the principles of forward kinematics with animation and interactive controls
+    - Interactive step-by-step demonstration of the forward kinematics process in latex
+    - Detailed math derivations of the transformation matrices
 
-In the project directory, you can run:
+2. Digital Twin
+    - A digital twin of the [5-DoF PhantomX Pincher Robot](https://docs.fictionlab.pl/integrations/noetic/legacy/trossen-phantomx-pincher)
+    - A Real-time robot control and visualization 
+      - A URDF 3D model synced with the physical robot
+      - Connected to the physical robot via Serial communication (USB); No SDK needed, Plug-n-Play; 
+      - Commander to control the joints of the physical robot
+        - Connect; Torque On; Home; Send Joint Angles; Send End-Effector Pose; Send Trajectory (Under Development); Torque Off; Disconnect;
+      - A fast numerical inverse kineamtics solver with adjustable masks (XYZ RPY) for the robot 
+      - Tunable speed dial (tick per second) for robot control
+      - Note: requires customized firmware on the robot
+    - Good for in class demonstration and lab exercises in robotics courses
 
-### `npm start`
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+## How to use the web-app ([kinemat.netlify.app](http://kinemat.netlify.app)):
+1. Upon opening the web-app, you will land on the **2D Kinematic** page:
+   1. Use the sliders/input fields to control the joints of the 3-DoF robotic arm and observe the changes in the end-effector position and orientation.
+   ![Joint Control](images/Screenshot 2026-07-04 at 16.42.43.png)
+   2. Click on 0, 1, 2, 3, 4 and Play All buttons to see the animations and math derivations of the forward kinematics process.
+    ![Animation](images/Screenshot 2026-07-04 at 16.46.09.png)
+   3. Click on the "⚙️" button to change link lengths.
+   ![Settings](images/Screenshot 2026-07-04 at 16.48.48.png)
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
-
-### `npm test`
-
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
-
-### `npm run build`
-
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
-
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
-
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
-
-### `npm run eject`
-
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
-
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
-
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
-
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
-
-## Learn More
-
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
-
-### Code Splitting
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
-# kinemat-lab
