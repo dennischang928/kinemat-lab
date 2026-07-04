@@ -26,7 +26,8 @@
 ### Upon opening the web-app, you will land on the **2D Kinematic** page:
 ---
 1. Use the sliders/input fields to control the joints of the 3-DoF robotic arm and observe the changes in the end-effector position and orientation.
-<img src="images/Screenshot%202026-07-04%20at%2016.42.43.png" alt="Joint Control" width="400" />Click on 0, 1, 2, 2. 1, 2, 3, 4 and Play All buttons to see the animations and math derivations of the forward kinematics process.
+<img src="images/Screenshot%202026-07-04%20at%2016.42.43.png" alt="Joint Control" width="400" />
+2. Click on 1, 2, 3, 4 and Play All buttons to see the animations and math derivations of the forward kinematics process.
  <img src="images/Screenshot%202026-07-04%20at%2016.46.09.png" alt="Animation" width="400" />
 3. Click on the "⚙️" button to change link lengths.
 <img src="images/Screenshot%202026-07-04%20at%2016.48.48.png" alt="Settings" width="400" />
