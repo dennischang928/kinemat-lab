@@ -93,7 +93,7 @@ function MainSidebar() {
         <Tooltip title="Project repository" placement="right" arrow>
           <IconButton
             component="a"
-            href="https://github.com/dennischang928/kinemat-firmware"
+            href="https://github.com/dennischang928/kinemat-lab"
             target="_blank"
             rel="noreferrer"
             aria-label="Project repository"
