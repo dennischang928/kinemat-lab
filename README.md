@@ -7,6 +7,7 @@
 
 > Utilized by Dr. Amit Banerjee in ME457 Introduction to Robotics as an educational tool at the Pennsylvania State University Harrisuburg.
 
+> Github: [https://github.com/dennischang928/kinemat-lab]
 ## Features:
 1. A 2D Kinematic model of a 3-DoF robotic arm.
     - Visualization of the principles of forward kinematics with animation and interactive controls
