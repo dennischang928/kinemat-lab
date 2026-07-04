@@ -18,7 +18,7 @@
         - Connect; Torque On; Home; Send Joint Angles; Send End-Effector Pose; Send Trajectory (Under Development); Torque Off; Disconnect;
       - A fast numerical inverse kineamtics solver with adjustable masks (XYZ RPY) for the robot 
       - Tunable speed dial (tick per second) for robot control
-      - Note: requires customized firmware on the robot
+      - Note: requires customized [firmware](https://github.com/dennischang928/kinemat-firmware) on the robot
     - Good for in class demonstration and lab exercises in robotics courses
 
 
