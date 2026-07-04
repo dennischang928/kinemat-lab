@@ -25,9 +25,9 @@
 ## How to use the web-app ([kinemat.netlify.app](http://kinemat.netlify.app)):
 1. Upon opening the web-app, you will land on the **2D Kinematic** page:
    1. Use the sliders/input fields to control the joints of the 3-DoF robotic arm and observe the changes in the end-effector position and orientation.
-   ![Joint Control](images/Screenshot 2026-07-04 at 16.42.43.png)
+  ![Joint Control](images/Screenshot%202026-07-04%20at%2016.42.43.png)
    2. Click on 0, 1, 2, 3, 4 and Play All buttons to see the animations and math derivations of the forward kinematics process.
-    ![Animation](images/Screenshot 2026-07-04 at 16.46.09.png)
+    ![Animation](images/Screenshot%202026-07-04%20at%2016.46.09.png)
    3. Click on the "⚙️" button to change link lengths.
-   ![Settings](images/Screenshot 2026-07-04 at 16.48.48.png)
+  ![Settings](images/Screenshot%202026-07-04%20at%2016.48.48.png)
 
