@@ -1,5 +1,9 @@
 # Kinemat 
-> An interactive and intuitive model for learning kinematics in robotics lives in [k.sengchon.com](http://k.sengchon.com) or [kinemat.netlify.app](http://kinemat.netlify.app); 
+> An interactive and intuitive model for learning kinematics in robotics 
+
+> Live at [k.sengchon.com](http://k.sengchon.com) or [kinemat.netlify.app](http://kinemat.netlify.app); 
+
+> Created and developed by Dennis Chang (sengchon.com) under the guidance of Dr. Amit Banerjee at the Pennsylvania State University Harrisuburg.
 
 > Utilized by Dr. Amit Banerjee in ME457 course as an educational tool at the Pennsylvania State University Harrisuburg.
 
@@ -21,6 +25,7 @@
       - Note: requires customized [firmware](https://github.com/dennischang928/kinemat-firmware) on the robot
     - Good for in class demonstration and lab exercises in robotics courses
 
+> See WEB_APP_DOCUMENTATION.md for more technical details
 
 ## How to use the web-app ([kinemat.netlify.app](http://kinemat.netlify.app)):
 ### Upon opening the web-app, you will land on the **2D Kinematic** page:
