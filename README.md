@@ -63,7 +63,7 @@ DH = [
 ```
 > See code in my [google collab](https://colab.research.google.com/drive/1llMRyLazrZ_MI5IJcQR3uzGe0sQIOXm5?usp=sharing).
 
-
+![Pincher DH Parameters](./images/DH.jpg)
 
 
 
