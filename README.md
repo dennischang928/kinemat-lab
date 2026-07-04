@@ -5,7 +5,7 @@
 
 > Created and developed by Dennis Chang (sengchon.com) under the guidance of Dr. Amit Banerjee at the Pennsylvania State University Harrisuburg.
 
-> Utilized by Dr. Amit Banerjee in ME457 course as an educational tool at the Pennsylvania State University Harrisuburg.
+> Utilized by Dr. Amit Banerjee in ME457 Introduction to Robotics as an educational tool at the Pennsylvania State University Harrisuburg.
 
 ## Features:
 1. A 2D Kinematic model of a 3-DoF robotic arm.
