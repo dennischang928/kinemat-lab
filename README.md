@@ -23,26 +23,27 @@
 
 
 ## How to use the web-app ([kinemat.netlify.app](http://kinemat.netlify.app)):
-1. Upon opening the web-app, you will land on the **2D Kinematic** page:
-   1. Use the sliders/input fields to control the joints of the 3-DoF robotic arm and observe the changes in the end-effector position and orientation.
-  <img src="images/Screenshot%202026-07-04%20at%2016.42.43.png" alt="Joint Control" width="400" />
-   2. Click on 0, 1, 2, 3, 4 and Play All buttons to see the animations and math derivations of the forward kinematics process.
-    <img src="images/Screenshot%202026-07-04%20at%2016.46.09.png" alt="Animation" width="400" />
-   3. Click on the "⚙️" button to change link lengths.
-  <img src="images/Screenshot%202026-07-04%20at%2016.48.48.png" alt="Settings" width="400" />
+### Upon opening the web-app, you will land on the **2D Kinematic** page:
+---
+1. Use the sliders/input fields to control the joints of the 3-DoF robotic arm and observe the changes in the end-effector position and orientation.
+<img src="images/Screenshot%202026-07-04%20at%2016.42.43.png" alt="Joint Control" width="400" />Click on 0, 1, 2, 2. 1, 2, 3, 4 and Play All buttons to see the animations and math derivations of the forward kinematics process.
+ <img src="images/Screenshot%202026-07-04%20at%2016.46.09.png" alt="Animation" width="400" />
+3. Click on the "⚙️" button to change link lengths.
+<img src="images/Screenshot%202026-07-04%20at%2016.48.48.png" alt="Settings" width="400" />
 
 
-2. Click on the "Digital Twin" button on the side bar to go to the **Digital Twin** page:
-   1. Connections Panel: Connect/Disconnect; Torque On/Off; Home;
-      1. <img src="images/Screenshot%202026-07-04%20at%2016.57.05.png" alt="Connections Panel" width="400" />
-   
-   2. Command Panel: **Send** with **Speed**; Gripper On/Off;
-      1. Sync Button: most features are disabled until the robot is synced with the digital twin for safety. Sync requires a 3+ seconds to complete
-      2. <img src="images/Screenshot%202026-07-04%20at%2017.05.18.png" alt="Command Panel" width="400" />
-   3. Joint Control: Use sliders to control the angles
-   4. Pose Control: 
-       1. Masks tick Boxes: XYZ RPY;
-       2. Because the PhantomX Pincher robot has only 4-DoF excluding the gripper, Only 4 variables are controllable at a time (e.g.: X, Y, Z, Yaw)
-       3. Input fields: Input desired end-effector pose in XYZ RPY
-       4. <img src="images/Screenshot%202026-07-04%20at%2017.12.36.png" alt="Pose Control" width="400" />
-    
+### Click on the "Digital Twin" button on the side bar to go to the **Digital Twin** page:
+---
+1. Connections Panel: Connect/Disconnect; Torque On/Off; Home;
+   1. <img src="images/Screenshot%202026-07-04%20at%2016.57.05.png" alt="Connections Panel" width="400" />
+
+2. Command Panel: **Send** with **Speed**; Gripper On/Off;
+   1. Sync Button: most features are disabled until the robot is synced with the digital twin for safety. Sync requires a 3+ seconds to complete
+   2. <img src="images/Screenshot%202026-07-04%20at%2017.05.18.png" alt="Command Panel" width="400" />
+3. Joint Control: Use sliders to control the angles
+4. Pose Control: 
+    1. Masks tick Boxes: XYZ RPY;
+    2. Because the PhantomX Pincher robot has only 4-DoF excluding the gripper, Only 4 variables are controllable at a time (e.g.: X, Y, Z, Yaw)
+    3. Input fields: Input desired end-effector pose in XYZ RPY
+    4. <img src="images/Screenshot%202026-07-04%20at%2017.12.36.png" alt="Pose Control" width="400" />
+ 
