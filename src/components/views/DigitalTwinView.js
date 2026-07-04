@@ -306,12 +306,10 @@ function DigitalTwinView({ activeSection = 'control', onSectionChange = () => { 
   const handleSceneTransformation = useCallback((scenePose) => {
     if (activeSection === 'pose' && poseControlRef.current && typeof poseControlRef.current.handleSceneTransformation === 'function') {
       return poseControlRef.current.handleSceneTransformation(scenePose);
-      // console.log('Scene transformation received in pose:', scenePose);
     }
 
     if (activeSection === 'programming' && programmingRef.current && typeof programmingRef.current.handleSceneTransformation === 'function') {
       return programmingRef.current.handleSceneTransformation(scenePose);
-      // console.log('Scene transformation received in program:', scenePose);
     }
   }, [activeSection]);
 

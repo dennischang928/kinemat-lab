@@ -42,7 +42,6 @@ export default function useConnectionManager(connection, { onResetSync, onLockAc
           onResetSync();
           onLockActions();
           onAutoSync();
-          console.log("Auto-sync triggered on connect");
         }
       }
     } catch (err) {

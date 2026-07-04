@@ -1,5 +1,5 @@
 import { Matrix, solve as solveLinearSystem } from 'ml-matrix';
-import { calculateForwardKinematicsMatrix, calculateForwardKinematicsMatrixDegrees } from './fk.js';
+import { calculateForwardKinematicsMatrix } from './fk.js';
 
 /* ====== Geometry / robot constants ====== */
 const UPPER_ARM = 0.106;
@@ -102,72 +102,8 @@ const matrixPoseError = (currentMatrix, targetMatrix, poseMask = null) => {
 	return matrixSmallAnglePoseError(currentMatrix, targetMatrix);
 };
 
-const matrixToPoseDegrees = (matrix = []) => {
-	const x = matrix?.[0]?.[3] ?? 0;
-	const y = matrix?.[1]?.[3] ?? 0;
-	const z = matrix?.[2]?.[3] ?? 0;
-	const pitch = Math.atan2(-(matrix?.[2]?.[0] ?? 0), Math.sqrt(((matrix?.[2]?.[1] ?? 0) ** 2) + ((matrix?.[2]?.[2] ?? 0) ** 2)));
-	const roll = Math.atan2(matrix?.[2]?.[1] ?? 0, matrix?.[2]?.[2] ?? 0);
-	const yaw = Math.atan2(matrix?.[1]?.[0] ?? 0, matrix?.[0]?.[0] ?? 0);
-
-	return {
-		x,
-		y,
-		z,
-		roll: roll * RAD_TO_DEG,
-		pitch: pitch * RAD_TO_DEG,
-		yaw: yaw * RAD_TO_DEG,
-	};
-};
-
-const jointsToDegrees = (joints = []) => ({
-	q1: (joints[0] ?? 0) * RAD_TO_DEG,
-	q2: (joints[1] ?? 0) * RAD_TO_DEG,
-	q3: (joints[2] ?? 0) * RAD_TO_DEG,
-	q4: (joints[3] ?? 0) * RAD_TO_DEG,
-});
-
-const logIkSolve = ({ targetMatrix, poseMask, solution, source = 'matrix' }) => {
-	const poseInput = matrixToPoseDegrees(targetMatrix);
-	const maskLog = poseMask;
-
-	if (!solution) {
-		console.groupCollapsed(`[IK] ${source} solve`);
-		console.log('mask', maskLog);
-		console.log('pose input', poseInput);
-		console.log('roll/pitch/yaw', {
-			roll: poseInput.roll,
-			pitch: poseInput.pitch,
-			yaw: poseInput.yaw,
-		});
-		console.warn('No IK solution found');
-		console.groupEnd();
-		return;
-	}
-
-	const fkMatrix = calculateForwardKinematicsMatrixDegrees(jointsToDegrees([solution.q1, solution.q2, solution.q3, solution.q4]));
-
-	console.groupCollapsed(`[IK] ${source} solve`);
-	console.log('mask', maskLog);
-	console.log('pose input', poseInput);
-	console.log('roll/pitch/yaw', {
-		roll: poseInput.roll,
-		pitch: poseInput.pitch,
-		yaw: poseInput.yaw,
-	});
-	console.log('joint output (rad)', {
-		q1: solution.q1,
-		q2: solution.q2,
-		q3: solution.q3,
-		q4: solution.q4,
-	});
-	console.log('joint output (deg)', jointsToDegrees([solution.q1, solution.q2, solution.q3, solution.q4]));
-	console.log('FK output', matrixToPoseDegrees(fkMatrix));
-	console.groupEnd();
-};
-
 /* ====== Numeric Jacobian + DLS step builder (returns delta vector) ====== */
-	const buildMaskedLeastSquaresStep = (joints, targetMatrix, poseMask, activeRows, stepSize, damping, currentPoseError) => {
+const buildMaskedLeastSquaresStep = (joints, targetMatrix, poseMask, activeRows, stepSize, damping, currentPoseError) => {
 	if (activeRows.length === 0) return { delta: [0, 0, 0, 0] };
 
 	const error = activeRows.map((r) => currentPoseError[r]);
@@ -289,13 +225,9 @@ export const calculateInverseKinematicsMatrix = (targetMatrix, options = {}) => 
 		}
 
 		const final = best || bestByError;
-		if (!final) {
-			logIkSolve({ targetMatrix, poseMask, solution: null, source: 'matrix/continuity' });
-			return null;
-		}
+		if (!final) return null;
 
 		const solution = { q1: final.joints[0], q2: final.joints[1], q3: final.joints[2], q4: final.joints[3], reachable: true, converged: final.converged, iterations: final.iterations, errorNorm: final.errorNorm, seedErrorNorm: final.seedErrorNorm, bestErrorNorm: final.bestErrorNorm, mask: poseMask, continuityMode: true, elbow: final.name };
-		logIkSolve({ targetMatrix, poseMask, solution, source: 'matrix/continuity' });
 		return solution;
 	}
 
@@ -318,7 +250,6 @@ export const calculateInverseKinematicsMatrix = (targetMatrix, options = {}) => 
 		}
 	}
 
-	logIkSolve({ targetMatrix, poseMask, solution: bestResult, source: 'matrix' });
 	return bestResult;
 };
 
@@ -366,7 +297,6 @@ export const calculateInverseKinematicsPosition = (targetMatrixOrX, yOrOptions, 
 			[0, 0, 1, z],
 			[0, 0, 0, 1],
 		];
-	logIkSolve({ targetMatrix, poseMask: [true, true, true, false, false, false], solution, source: 'position' });
 	return solution;
 };
 

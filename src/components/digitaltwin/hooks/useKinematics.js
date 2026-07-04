@@ -116,7 +116,6 @@ function useKinematics() {
         if (!solution || !solution.converged) {
             return null;
         }
-        // console.log('Inverse kinematics solution:', solution);
         return {
             J1: solution.q1 + CENTEROFFSETDEG,
             J2: solution.q2 + CENTEROFFSETDEG,
@@ -151,4 +150,3 @@ function useKinematics() {
 }
 
 export default useKinematics;
-

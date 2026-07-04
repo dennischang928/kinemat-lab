@@ -552,9 +552,7 @@ function URDFSceneViewport({
     if (saved) {
       try {
         return { ...DEFAULT_VIEW_SETTINGS, ...JSON.parse(saved) };
-      } catch (error) {
-        console.error('Failed to parse settings', error);
-      }
+      } catch (error) {}
     }
 
     return DEFAULT_VIEW_SETTINGS;

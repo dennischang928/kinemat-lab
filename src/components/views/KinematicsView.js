@@ -25,9 +25,7 @@ function KinematicsView() {
     if (saved) {
       try {
         return JSON.parse(saved);
-      } catch (e) {
-        console.error('Failed to parse saved angles', e);
-      }
+      } catch (e) {}
     }
     return DEFAULT_ANGLES;
   });
@@ -37,9 +35,7 @@ function KinematicsView() {
     if (saved) {
       try {
         return JSON.parse(saved);
-      } catch (e) {
-        console.error('Failed to parse saved link lengths', e);
-      }
+      } catch (e) {}
     }
     return DEFAULT_LINK_LENGTHS;
   });

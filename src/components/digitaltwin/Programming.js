@@ -77,8 +77,6 @@ const Programming = forwardRef(function Programming({
         ...prev,
         ...solvedJoints,
       }));
-    } else {
-      console.warn('No solution — position unreachable');
     }
   };
 
@@ -114,8 +112,6 @@ const Programming = forwardRef(function Programming({
       programRef.current.addFrame();
       return;
     }
-
-    console.warn('Pose Program is not ready yet.');
   };
 
   return (
@@ -174,7 +170,7 @@ const Programming = forwardRef(function Programming({
               setFeedrate={setFeedrate}
               connection={connection}
               isTorqueEnabled={isTorqueEnabled}
-              onError={(message) => console.warn(message)}
+              onError={() => {}}
               hideRunButton={false}
               controlsDisabled={controlsDisabled}
               onPlanChange={onPlanChange}

@@ -34,8 +34,7 @@ const PoseControl = forwardRef(function PoseControl({
     }
 
     const solvedJoints = solveJointsFromPose(nextPose, jointTargets, { mask });
-    // console.log('Solved joints:', solvedJoints);
-    
+
     if (solvedJoints) {
       setJointTargets((prev) => ({
         ...prev,
@@ -43,7 +42,6 @@ const PoseControl = forwardRef(function PoseControl({
       }));
       return true;
     } 
-    console.warn(failureMessage);
     return false;
   }, [jointTargets, setJointTargets, solveJointsFromPose]);
 
@@ -60,7 +58,6 @@ const PoseControl = forwardRef(function PoseControl({
       pitch: euler ? euler.y * (180 / Math.PI) : currentPose.pitch,
       yaw: euler ? euler.z * (180 / Math.PI) : currentPose.yaw,
     };
-    // console.log("Mask", kinematicMask);
     return solvePoseChange(
       nextPose,
       [kinematicMask.x, kinematicMask.y, kinematicMask.z, kinematicMask.roll, kinematicMask.pitch, kinematicMask.yaw],

@@ -224,7 +224,6 @@ export default function CommandPanel({
     try {
       const startedAt = Date.now();
       while (Date.now() - startedAt < SYNC_TIMEOUT_MS) {
-        console.log('Attempting to sync...');
         const ok = await connection.sendCommandWithTimeout('M114\n', { timeout: SYNC_RETRY_MS });
         if (ok) {
           return;

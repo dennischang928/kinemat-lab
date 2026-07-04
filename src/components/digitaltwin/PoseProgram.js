@@ -288,7 +288,6 @@ const ProgramInner = forwardRef(function PoseProgram({
 			const now = Date.now();
 			lastG0TimeRef.current = now;
 		} else {
-			// console.log(command);
 		}
 		// If sends are requested (real hardware run), perform them.
 		// For preview/playback in the UI we skip any serial I/O so the

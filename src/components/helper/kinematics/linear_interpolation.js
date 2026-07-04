@@ -101,8 +101,6 @@ const detectJointSpikes = (fullSequence = [], { segmentIndex = 0, segmentCount =
 		const avg = avgByJoint[joint] || 0;
 		if (delta >= thresholdDegPerStep || (avg > 0 && delta >= avg * spikeFactor)) {
 			foundSpike = true;
-			const ratio = avg > 0 ? (delta / avg).toFixed(2) : '∞';
-			console.warn(`[linear_interpolation] Joint spike detected: segment=${segmentIndex}, source=${sourceId || 'unknown'}, step=${stepIndex + 1}/${steps}, joint=${joint}, delta=${delta.toFixed(2)}° (avg=${avg.toFixed(2)}°, ratio=${ratio}), threshold=${thresholdDegPerStep}° per step`);
 		}
 	});
 
@@ -137,12 +135,11 @@ export const interpolateCartesianWithIK = (fromFrame = {}, toFrame = {}, segment
 		const guessRad = JOINT_KEYS.map((k) => degToRad((guessJointsDeg[k] || 0) - CENTER_OFFSET_DEG));
 
 		const optimizedToGuess = guessRad.map((val, idx) => {
-			const guess_weight = 0.5; // Adjust this weight to balance between the guess and the previous solution
-			const previous_weight = 1 - guess_weight;
-			return (val * guess_weight + previousSolution[idx] * previous_weight);
+			const guessWeight = 0.5;
+			const previousWeight = 1 - guessWeight;
+			return (val * guessWeight + previousSolution[idx] * previousWeight);
 		});
 
-		// console.log(optimizedToGuess)
 		const numericOptions = {
 			mask: [true, true, true, false, false, false],
 			initialGuess: guessRad,
@@ -150,10 +147,7 @@ export const interpolateCartesianWithIK = (fromFrame = {}, toFrame = {}, segment
 		};
 
 		const sol = calculateInverseKinematicsMatrix(T, numericOptions);
-		// console.log('IK guess:', guessJointsDeg, '->', sol ? { q1: radToDeg(sol.q1) + CENTER_OFFSET_DEG, q2: radToDeg(sol.q2) + CENTER_OFFSET_DEG, q3: radToDeg(sol.q3) + CENTER_OFFSET_DEG, q4: radToDeg(sol.q4) + CENTER_OFFSET_DEG } : 'no solution');
-
 		if (!sol) {
-			console.warn(`IK failed at segment ${i}/${count} (t=${t.toFixed(2)}) - position (${x.toFixed(2)}, ${y.toFixed(2)}, ${z.toFixed(2)}) is unreachable.`);
 			return { jointPoints: [], success: false };
 		}
 
@@ -215,9 +209,7 @@ export const buildCartesianInterpolationPlan = (frames = [], interpolationSegmen
 			try {
 				const fullSequence = [from.joints, ...result.jointPoints];
 				detectJointSpikes(fullSequence, spikeOpts);
-			} catch (e) {
-				console.error('[linear_interpolation] spike detection failed', e);
-			}
+			} catch {}
 
 			result.jointPoints.forEach((jointsDeg, pIndex) => {
 				const t = (pIndex + 1) / Math.max(1, result.jointPoints.length);
@@ -235,9 +227,7 @@ export const buildCartesianInterpolationPlan = (frames = [], interpolationSegmen
 			const jointInterpolatedFull = interpolateJoints(from.joints, to.joints, segmentCount);
 			try {
 				detectJointSpikes(jointInterpolatedFull, spikeOpts);
-			} catch (e) {
-				console.error('[linear_interpolation] spike detection failed', e);
-			}
+			} catch {}
 
 			const jointInterpolated = jointInterpolatedFull.slice(1);
 			const pointsCount = jointInterpolated.length || 1;
