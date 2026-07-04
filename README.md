@@ -35,7 +35,7 @@
 2. Click on the "Digital Twin" button on the side bar to go to the **Digital Twin** page:
    1. Connections Panel: Connect/Disconnect; Torque On/Off; Home;
    <img src="images/Screenshot 2026-07-04 at 16.57.05.png" alt="Connections Panel" width="400" />
-    2. Command Panel: **Send** with **Speed**; Gripper On/Off;
+   2. Command Panel: **Send** with **Speed**; Gripper On/Off;
         - Sync Button: most features are disabled until the robot is synced with the digital twin for safety. Sync requires a 3+ seconds to complete.<img src="images/Screenshot 2026-07-04 at 17.05.18.png" alt="Command Panel" width="400" /> 
     3. Joint Control: Use sliders to control the angles
     4. Pose Control: 
